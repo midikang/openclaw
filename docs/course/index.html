@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How OpenClaw Works — Interactive Course</title>
+  <style>
+    /* ─── Design tokens ────────────────────────────────────────────────── */
+    :root {
+      --bg:        #fdf8f4;
+      --bg-card:   #ffffff;
+      --bg-code:   #1e1e2e;
+      --accent:    #e05c37;
+      --accent-lt: #fce9e3;
+      --accent2:   #f5a623;
+      --text:      #1a1a1a;
+      --muted:     #6b7280;
+      --border:    #e8ddd5;
+      --tag-bg:    #fdf0e8;
+      --tag-text:  #c04a1e;
+      --quiz-bg:   #fffbf0;
+      --quiz-border:#f5c842;
+      --correct:   #2ecc71;
+      --wrong:     #e74c3c;
+      --font-body: 'Georgia', serif;
+      --font-ui:   'Segoe UI', system-ui, sans-serif;
+      --font-code: 'Consolas', 'Monaco', monospace;
+      --radius:    12px;
+      --shadow:    0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    /* ─── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.7;
+      font-size: 17px;
+    }
+
+    /* ─── Progress bar (sticky top) ────────────────────────────────────── */
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%; z-index: 1000;
+      transition: width 0.2s ease;
+    }
+
+    /* ─── Sidebar nav ───────────────────────────────────────────────────── */
+    #sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
+      background: var(--bg-card); border-right: 1px solid var(--border);
+      padding: 28px 0 28px 0; z-index: 100;
+      overflow-y: auto; display: flex; flex-direction: column;
+    }
+    #sidebar .logo {
+      font-family: var(--font-ui); font-weight: 700; font-size: 18px;
+      color: var(--accent); padding: 0 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    #sidebar .logo span { font-size: 22px; }
+    #sidebar nav { padding: 16px 0; flex: 1; }
+    #sidebar nav a {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 20px; font-family: var(--font-ui); font-size: 13px;
+      color: var(--muted); text-decoration: none; border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    #sidebar nav a:hover,
+    #sidebar nav a.active {
+      color: var(--accent); border-left-color: var(--accent);
+      background: var(--accent-lt);
+    }
+    #sidebar nav a .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--border); font-size: 11px; flex-shrink: 0;
+      color: var(--muted);
+    }
+    #sidebar nav a.active .num { background: var(--accent); color: #fff; }
+    #sidebar .kbd-hint {
+      padding: 12px 20px; font-family: var(--font-ui); font-size: 11px;
+      color: var(--muted); border-top: 1px solid var(--border);
+    }
+    #sidebar .kbd-hint kbd {
+      background: var(--border); border-radius: 3px; padding: 1px 5px;
+      font-size: 11px;
+    }
+
+    /* ─── Main content ──────────────────────────────────────────────────── */
+    #main { margin-left: 220px; }
+
+    /* ─── Hero ──────────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #fff5f0 0%, #fdf8f4 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 60px 60px;
+    }
+    .hero .badge {
+      display: inline-block; background: var(--tag-bg); color: var(--tag-text);
+      font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+      padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .hero h1 { font-size: 48px; line-height: 1.2; margin-bottom: 16px; color: var(--text); }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p.lead { font-size: 20px; color: var(--muted); max-width: 560px; margin-bottom: 32px; }
+    .hero .meta { display: flex; gap: 32px; }
+    .hero .meta .item { font-family: var(--font-ui); font-size: 14px; color: var(--muted); }
+    .hero .meta .item strong { color: var(--text); display: block; font-size: 22px; }
+
+    /* ─── Module sections ──────────────────────────────────────────────── */
+    .module {
+      max-width: 900px; margin: 0 auto; padding: 72px 60px;
+      border-bottom: 1px solid var(--border);
+    }
+    .module-header { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; }
+    .module-num {
+      font-family: var(--font-ui); font-size: 13px; font-weight: 700;
+      color: var(--accent); background: var(--accent-lt);
+      padding: 4px 12px; border-radius: 20px;
+    }
+    .module h2 { font-size: 32px; color: var(--text); line-height: 1.2; margin-bottom: 16px; }
+    .module .intro { font-size: 18px; color: var(--muted); margin-bottom: 40px; max-width: 680px; }
+
+    /* ─── Cards ─────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 28px;
+      box-shadow: var(--shadow); margin-bottom: 28px;
+    }
+    .card h3 { font-size: 20px; margin-bottom: 12px; color: var(--text); }
+    .card p { color: var(--muted); }
+
+    .cards-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .cards-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+
+    /* ─── Code translation block ─────────────────────────────────────────── */
+    .code-trans {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      border-radius: var(--radius); overflow: hidden;
+      border: 1px solid var(--border); margin-bottom: 32px;
+      box-shadow: var(--shadow);
+    }
+    .code-trans .code-side {
+      background: var(--bg-code); padding: 28px;
+      font-family: var(--font-code); font-size: 13px; line-height: 1.6;
+      color: #cdd6f4; overflow-x: auto;
+    }
+    .code-trans .code-side .label {
+      font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+      color: #6c7086; text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+    .code-trans .en-side {
+      background: #fff9f5; padding: 28px; border-left: 1px solid var(--border);
+    }
+    .code-trans .en-side .label {
+      font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+      color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+    .code-trans .en-side ul { list-style: none; }
+    .code-trans .en-side ul li {
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      font-family: var(--font-ui); font-size: 14px; color: var(--text);
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .code-trans .en-side ul li:last-child { border-bottom: none; }
+    .code-trans .en-side ul li::before {
+      content: "→"; color: var(--accent); flex-shrink: 0; margin-top: 1px;
+    }
+
+    /* syntax highlight helpers */
+    .kw  { color: #cba6f7; }
+    .fn  { color: #89b4fa; }
+    .str { color: #a6e3a1; }
+    .com { color: #585b70; font-style: italic; }
+    .tp  { color: #f38ba8; }
+    .num { color: #fab387; }
+    .field { color: #f9e2af; }
+
+    /* ─── Flow diagram ──────────────────────────────────────────────────── */
+    .flow {
+      display: flex; align-items: center; gap: 0;
+      margin: 32px 0; overflow-x: auto; padding-bottom: 4px;
+    }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; min-width: 120px;
+    }
+    .flow-step .box {
+      background: var(--bg-card); border: 2px solid var(--border);
+      border-radius: 10px; padding: 14px 18px; text-align: center;
+      font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+      color: var(--text); white-space: nowrap; cursor: default;
+      transition: all 0.2s;
+    }
+    .flow-step .box:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+    .flow-step .sub {
+      font-family: var(--font-ui); font-size: 11px; color: var(--muted);
+      text-align: center; max-width: 110px;
+    }
+    .flow-arrow {
+      font-size: 22px; color: var(--accent); padding: 0 6px; flex-shrink: 0;
+      margin-bottom: 28px;
+    }
+    .flow-step .box.highlight { border-color: var(--accent); background: var(--accent-lt); }
+
+    /* ─── Animated pipeline ─────────────────────────────────────────────── */
+    .pipeline-anim {
+      background: var(--bg-code); border-radius: var(--radius);
+      padding: 32px; margin-bottom: 32px; position: relative; overflow: hidden;
+    }
+    .pipeline-anim .title {
+      font-family: var(--font-ui); font-size: 13px; color: #6c7086;
+      margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .pipe-row { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+    .pipe-node {
+      padding: 10px 16px; border-radius: 8px; font-family: var(--font-ui);
+      font-size: 13px; font-weight: 600; white-space: nowrap;
+    }
+    .pipe-node.channel  { background: #313244; color: #89dceb; border: 1px solid #45475a; }
+    .pipe-node.router   { background: #313244; color: #a6e3a1; border: 1px solid #45475a; }
+    .pipe-node.gateway  { background: #313244; color: #fab387; border: 1px solid #45475a; }
+    .pipe-node.agent    { background: #313244; color: #cba6f7; border: 1px solid #45475a; }
+    .pipe-node.model    { background: #313244; color: #f9e2af; border: 1px solid #45475a; }
+    .pipe-arrow { font-size: 20px; color: #585b70; padding: 0 8px; }
+    .pipe-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent); position: absolute;
+      animation: flow-dot 3s ease-in-out infinite;
+      opacity: 0;
+    }
+    @keyframes flow-dot {
+      0%   { left: 40px; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { left: calc(100% - 60px); opacity: 0; }
+    }
+
+    /* ─── Architecture diagram ──────────────────────────────────────────── */
+    .arch-diagram {
+      background: var(--bg-card); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 40px;
+      margin-bottom: 32px; position: relative;
+    }
+    .arch-center {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 16px;
+    }
+    .arch-gateway {
+      background: linear-gradient(135deg, #fff5f0, #fde8e0);
+      border: 2px solid var(--accent); border-radius: 16px;
+      padding: 20px 40px; font-family: var(--font-ui); font-weight: 700;
+      font-size: 18px; color: var(--accent);
+    }
+    .arch-ring {
+      display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+    }
+    .arch-node {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 20px;
+      font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+      color: var(--text); text-align: center;
+      transition: all 0.2s; cursor: default;
+    }
+    .arch-node:hover { border-color: var(--accent); color: var(--accent); }
+    .arch-connector {
+      display: flex; align-items: center; gap: 0; justify-content: center;
+    }
+    .arch-line {
+      width: 2px; height: 28px; background: var(--border);
+      margin: 0 auto; position: relative;
+    }
+    .arch-channels {
+      display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+    }
+    .arch-channel-tag {
+      background: var(--tag-bg); color: var(--tag-text);
+      font-family: var(--font-ui); font-size: 12px; padding: 4px 12px;
+      border-radius: 20px; font-weight: 600;
+    }
+
+    /* ─── Glossary tooltip ──────────────────────────────────────────────── */
+    .g {
+      color: var(--accent); border-bottom: 1px dashed var(--accent);
+      cursor: help; position: relative;
+    }
+    .g .tip {
+      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e2e; color: #cdd6f4;
+      font-family: var(--font-ui); font-size: 13px; line-height: 1.5;
+      padding: 10px 14px; border-radius: 8px; white-space: nowrap;
+      z-index: 200; max-width: 280px; white-space: normal; text-align: left;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      pointer-events: none;
+    }
+    .g .tip::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%); border: 6px solid transparent;
+      border-top-color: #1e1e2e;
+    }
+    .g:hover .tip { display: block; }
+
+    /* ─── Quiz ──────────────────────────────────────────────────────────── */
+    .quiz {
+      background: var(--quiz-bg); border: 2px solid var(--quiz-border);
+      border-radius: var(--radius); padding: 32px; margin-bottom: 32px;
+    }
+    .quiz .q-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    }
+    .quiz .q-header .badge {
+      background: var(--quiz-border); color: #7a5700;
+      font-family: var(--font-ui); font-size: 12px; font-weight: 700;
+      padding: 4px 12px; border-radius: 20px; text-transform: uppercase;
+    }
+    .quiz h3 { font-size: 18px; margin-bottom: 20px; line-height: 1.4; }
+    .quiz .options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz .option {
+      background: var(--bg-card); border: 2px solid var(--border);
+      border-radius: 8px; padding: 14px 18px;
+      font-family: var(--font-ui); font-size: 14px; cursor: pointer;
+      transition: all 0.15s; text-align: left;
+    }
+    .quiz .option:hover { border-color: var(--accent2); }
+    .quiz .option.correct { border-color: var(--correct); background: #f0fdf4; color: #166534; }
+    .quiz .option.wrong   { border-color: var(--wrong); background: #fef2f2; color: #991b1b; }
+    .quiz .explanation {
+      margin-top: 20px; padding: 16px; background: var(--bg-card);
+      border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;
+      font-family: var(--font-ui); font-size: 14px; display: none;
+    }
+    .quiz .explanation.visible { display: block; }
+
+    /* ─── Channel group-chat animation ─────────────────────────────────── */
+    .chat-anim {
+      background: #1e1e2e; border-radius: var(--radius);
+      padding: 28px; font-family: var(--font-ui); font-size: 13px;
+      margin-bottom: 32px; min-height: 220px; overflow: hidden;
+    }
+    .chat-msg {
+      display: flex; gap: 10px; margin-bottom: 14px;
+      opacity: 0; transform: translateY(8px);
+      animation: msg-in 0.4s forwards;
+    }
+    .chat-msg .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .chat-msg .bubble {
+      background: #313244; border-radius: 0 12px 12px 12px;
+      padding: 10px 14px; color: #cdd6f4; max-width: 300px;
+    }
+    .chat-msg .name { font-size: 11px; color: #6c7086; margin-bottom: 4px; font-weight: 600; }
+    .chat-msg.right { flex-direction: row-reverse; }
+    .chat-msg.right .bubble { border-radius: 12px 0 12px 12px; background: #313244; color: #a6e3a1; }
+    @keyframes msg-in {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-msg:nth-child(2) { animation-delay: 0.6s; }
+    .chat-msg:nth-child(3) { animation-delay: 1.3s; }
+    .chat-msg:nth-child(4) { animation-delay: 2.1s; }
+    .chat-msg:nth-child(5) { animation-delay: 3.0s; }
+    .chat-msg:nth-child(6) { animation-delay: 3.8s; }
+
+    /* ─── Callout blocks ────────────────────────────────────────────────── */
+    .callout {
+      border-radius: var(--radius); padding: 20px 24px;
+      margin-bottom: 28px; display: flex; gap: 14px; align-items: flex-start;
+    }
+    .callout.info { background: #eff6ff; border: 1px solid #bfdbfe; }
+    .callout.warn { background: var(--quiz-bg); border: 1px solid var(--quiz-border); }
+    .callout.tip  { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .callout .icon { font-size: 20px; flex-shrink: 0; }
+    .callout p { font-family: var(--font-ui); font-size: 14px; color: var(--text); }
+    .callout p strong { display: block; margin-bottom: 4px; font-size: 15px; }
+
+    /* ─── Session key explainer ─────────────────────────────────────────── */
+    .session-key {
+      background: var(--bg-code); border-radius: var(--radius);
+      padding: 28px; font-family: var(--font-code); font-size: 16px;
+      margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .session-key .sk-row { display: flex; gap: 0; align-items: stretch; border-radius: 8px; overflow: hidden; }
+    .session-key .sk-part {
+      padding: 12px 18px; font-size: 14px; text-align: center;
+      font-weight: 700; font-family: var(--font-ui);
+    }
+    .session-key .sk-part.p1 { background: #45475a; color: #89dceb; }
+    .session-key .sk-part.p2 { background: #313244; color: #a6e3a1; }
+    .session-key .sk-part.p3 { background: #45475a; color: #fab387; }
+    .session-key .sk-part.p4 { background: #313244; color: #cba6f7; }
+    .session-key .sk-sep { background: #1e1e2e; color: #585b70; padding: 12px 6px; font-size: 18px; display: flex; align-items: center; }
+    .session-key .sk-labels { display: flex; gap: 0; }
+    .session-key .sk-label { flex: 1; text-align: center; font-family: var(--font-ui); font-size: 11px; color: #6c7086; padding-top: 6px; }
+
+    /* ─── Binding priority table ─────────────────────────────────────────── */
+    .priority-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+    .priority-table th {
+      background: var(--bg-code); color: #6c7086;
+      font-family: var(--font-ui); font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 12px 16px; text-align: left;
+    }
+    .priority-table td {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      font-family: var(--font-ui); font-size: 14px;
+    }
+    .priority-table tr:last-child td { border-bottom: none; }
+    .priority-table tr:hover td { background: var(--accent-lt); }
+    .priority-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      font-size: 12px; font-weight: 700;
+    }
+    .match-tag {
+      font-family: var(--font-code); font-size: 12px;
+      background: var(--bg-code); color: #a6e3a1;
+      padding: 2px 8px; border-radius: 4px;
+    }
+
+    /* ─── Plugin lifecycle ──────────────────────────────────────────────── */
+    .lifecycle {
+      display: flex; flex-direction: column; gap: 0; margin-bottom: 32px;
+      border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    }
+    .lifecycle-step {
+      display: flex; align-items: center; gap: 16px; padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-ui); font-size: 14px;
+      transition: background 0.15s; cursor: default;
+    }
+    .lifecycle-step:last-child { border-bottom: none; }
+    .lifecycle-step:hover { background: var(--accent-lt); }
+    .lifecycle-step .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-lt); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; flex-shrink: 0;
+    }
+    .lifecycle-step .step-title { font-weight: 600; }
+    .lifecycle-step .step-desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    /* ─── Feature grid ──────────────────────────────────────────────────── */
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .feature-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .feature-item .icon { font-size: 28px; margin-bottom: 10px; }
+    .feature-item h4 { font-family: var(--font-ui); font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .feature-item p { font-family: var(--font-ui); font-size: 13px; color: var(--muted); }
+
+    /* ─── Tag cloud ─────────────────────────────────────────────────────── */
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+    .tags .tag {
+      background: var(--tag-bg); color: var(--tag-text);
+      font-family: var(--font-ui); font-size: 13px; padding: 5px 14px;
+      border-radius: 20px; font-weight: 500;
+    }
+
+    /* ─── Inline code ────────────────────────────────────────────────────── */
+    code {
+      font-family: var(--font-code); font-size: 13px;
+      background: #f1ede8; padding: 2px 6px; border-radius: 4px;
+      color: var(--accent);
+    }
+
+    /* ─── Final module ───────────────────────────────────────────────────── */
+    .finish-card {
+      background: linear-gradient(135deg, var(--accent-lt), #fff);
+      border: 2px solid var(--accent); border-radius: 16px;
+      padding: 48px; text-align: center; margin-bottom: 40px;
+    }
+    .finish-card h2 { font-size: 36px; margin-bottom: 12px; }
+    .finish-card p { font-size: 18px; color: var(--muted); margin-bottom: 24px; }
+    .finish-card .btn {
+      display: inline-block; background: var(--accent); color: #fff;
+      font-family: var(--font-ui); font-weight: 700; font-size: 15px;
+      padding: 14px 32px; border-radius: 8px; text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .finish-card .btn:hover { opacity: 0.85; }
+
+    /* ─── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      #sidebar { display: none; }
+      #main { margin-left: 0; }
+      .code-trans { grid-template-columns: 1fr; }
+      .cards-2, .cards-3, .feature-grid { grid-template-columns: 1fr; }
+      .hero, .module { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- Language switch -->
+<div style="position:fixed;top:12px;right:16px;z-index:200;">
+  <a href="index.zh-CN.html" style="font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;color:#6b7280;text-decoration:none;background:#fff;border:1px solid #e8ddd5;padding:4px 12px;border-radius:20px;">中文</a>
+</div>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="logo"><span>🦞</span> OpenClaw Course</div>
+  <nav>
+    <a href="#intro" data-section="intro"><span class="num">0</span>What is OpenClaw?</a>
+    <a href="#gateway" data-section="gateway"><span class="num">1</span>The Gateway</a>
+    <a href="#routing" data-section="routing"><span class="num">2</span>Message Routing</a>
+    <a href="#channels" data-section="channels"><span class="num">3</span>Channels</a>
+    <a href="#agents" data-section="agents"><span class="num">4</span>Agent Runner</a>
+    <a href="#plugins" data-section="plugins"><span class="num">5</span>Plugin System</a>
+    <a href="#together" data-section="together"><span class="num">6</span>Putting It Together</a>
+    <a href="#quiz" data-section="quiz"><span class="num">★</span>Quiz</a>
+  </nav>
+  <div class="kbd-hint">
+    <kbd>↑</kbd><kbd>↓</kbd> navigate modules &nbsp; <kbd>?</kbd> help
+  </div>
+</nav>
+
+<!-- Main content -->
+<main id="main">
+
+  <!-- ── HERO ─────────────────────────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="badge">Interactive Course</div>
+    <h1>How <em>OpenClaw</em> Works</h1>
+    <p class="lead">A scroll-through course that teaches how a personal AI assistant is built — from the moment a WhatsApp message arrives to the AI reply that comes back.</p>
+    <div class="meta">
+      <div class="item"><strong>8</strong>modules</div>
+      <div class="item"><strong>6</strong>quizzes</div>
+      <div class="item"><strong>~30 min</strong>read time</div>
+    </div>
+  </section>
+
+  <!-- ── MODULE 0: What is OpenClaw? ──────────────────────────────────── -->
+  <section class="module" id="intro">
+    <div class="module-header">
+      <span class="module-num">MODULE 0</span>
+    </div>
+    <h2>What is OpenClaw?</h2>
+    <p class="intro">OpenClaw is a <strong>personal, self-hosted AI assistant</strong> that lives on your own machine and talks back on any messaging app you already use.</p>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="icon">💬</div>
+        <h4>Any Channel</h4>
+        <p>WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Teams, Matrix, and 15+ more — all connected to one assistant.</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🧠</div>
+        <h4>Any Model</h4>
+        <p>Claude, OpenAI, Ollama, local models, 30+ providers. Switch models without changing anything else.</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔌</div>
+        <h4>Extensible</h4>
+        <p>Channel plugins, tool plugins, skill plugins — add new abilities without touching core code.</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔒</div>
+        <h4>Your Infrastructure</h4>
+        <p>Runs on your Raspberry Pi, VPS, or Mac. No data leaves unless you choose a cloud AI provider.</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">⚡</div>
+        <h4>Always On</h4>
+        <p>Runs as a daemon (launchd/systemd). Auto-restarts, watches config, handles reconnects.</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🛠️</div>
+        <h4>Tool Execution</h4>
+        <p>Bash commands, file reads, web search, image generation — with approval flows built in.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:22px;margin-bottom:16px;">The Big Picture</h3>
+    <div class="arch-diagram">
+      <div class="arch-center">
+        <div class="arch-channels">
+          <span class="arch-channel-tag">WhatsApp</span>
+          <span class="arch-channel-tag">Telegram</span>
+          <span class="arch-channel-tag">Discord</span>
+          <span class="arch-channel-tag">Slack</span>
+          <span class="arch-channel-tag">Signal</span>
+          <span class="arch-channel-tag">iMessage</span>
+          <span class="arch-channel-tag">WeChat</span>
+          <span class="arch-channel-tag">and more</span>
+        </div>
+        <div class="arch-connector">
+          <div class="arch-line" style="height:32px;"></div>
+        </div>
+        <div class="arch-gateway">🦞 OpenClaw Gateway</div>
+        <div class="arch-connector">
+          <div class="arch-line" style="height:32px;"></div>
+        </div>
+        <div class="arch-ring">
+          <div class="arch-node">🤖 Claude</div>
+          <div class="arch-node">🤖 GPT-4</div>
+          <div class="arch-node">🤖 Ollama</div>
+          <div class="arch-node">🔧 Tools</div>
+          <div class="arch-node">💾 Sessions</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="icon">💡</span>
+      <p><strong>Mental model: the gateway is the switchboard.</strong> Channels plug in on one side. AI providers plug in on the other. The gateway routes, records, and replies — and the agent runner does the actual thinking.</p>
+    </div>
+  </section>
+
+  <!-- ── MODULE 1: The Gateway ────────────────────────────────────────── -->
+  <section class="module" id="gateway">
+    <div class="module-header">
+      <span class="module-num">MODULE 1</span>
+    </div>
+    <h2>The Gateway — Your Control Center</h2>
+    <p class="intro">The <span class="g">gateway<span class="tip">A long-running WebSocket + HTTP server (port 18789 by default) that is the control plane for all of OpenClaw's activity.</span></span> is the heart of OpenClaw. It is a WebSocket + HTTP server that stays running 24/7 and coordinates everything.</p>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/gateway/server.impl.ts</div>
+<pre><span class="kw">async function</span> <span class="fn">startGatewayServer</span>(
+  options: <span class="tp">GatewayServerOptions</span>
+) {
+  <span class="com">// 1. Load config from ~/.openclaw/config.json</span>
+  <span class="kw">const</span> <span class="field">cfg</span> = <span class="kw">await</span> <span class="fn">loadConfig</span>();
+
+  <span class="com">// 2. Boot all installed plugins</span>
+  <span class="kw">const</span> <span class="field">runtime</span> = <span class="kw">await</span> <span class="fn">initPluginRuntime</span>(cfg);
+
+  <span class="com">// 3. Connect every channel plugin</span>
+  <span class="kw">const</span> <span class="field">channels</span> = <span class="kw">new</span> <span class="tp">ChannelManager</span>(cfg, runtime);
+  <span class="kw">await</span> channels.<span class="fn">connectAll</span>();
+
+  <span class="com">// 4. Start WebSocket server</span>
+  <span class="fn">listenWebSocket</span>({ port: options.port ?? <span class="num">18789</span> });
+
+  <span class="com">// 5. Schedule background tasks</span>
+  <span class="fn">startHeartbeatRunner</span>();
+  <span class="fn">startCronScheduler</span>(cfg);
+  <span class="fn">watchConfigFile</span>(cfg);
+}</pre>
+      </div>
+      <div class="en-side">
+        <div class="label">Plain English</div>
+        <ul>
+          <li>Read the user's configuration file from <code>~/.openclaw/config.json</code> — this is where agents, channels, bindings, and model preferences live.</li>
+          <li>Load every plugin that's installed (channels, model providers, tool plugins). Plugins are npm packages installed into a plugins directory.</li>
+          <li>Connect to every channel: open the WhatsApp websocket, poll Telegram, join Discord, etc.</li>
+          <li>Open a WebSocket server so the mobile app, CLI, and web UI can all talk to the gateway.</li>
+          <li>Start background jobs: heartbeats keep channel connections alive, the cron scheduler fires timed tasks, and the config watcher reloads when the file changes.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:20px;">What the Gateway Handles</h3>
+    <div class="cards-2">
+      <div class="card">
+        <h3>📥 Inbound</h3>
+        <p>Receives messages from connected channels (WhatsApp, Telegram…), determines which agent should handle them, and queues them for the agent runner.</p>
+      </div>
+      <div class="card">
+        <h3>📤 Outbound</h3>
+        <p>Takes the AI's reply, formats it for the channel, and delivers it back — handling message splitting, media attachments, and typing indicators.</p>
+      </div>
+      <div class="card">
+        <h3>🔑 Auth</h3>
+        <p>Issues and verifies gateway tokens. Rate-limits unauthenticated callers to 10 attempts per minute. Lets the CLI pair via QR code to get a device token.</p>
+      </div>
+      <div class="card">
+        <h3>🔄 Config Reload</h3>
+        <p>Watches <code>~/.openclaw/config.json</code>. When it changes, the gateway reloads channel connections and agent config without restarting.</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <span class="icon">⚠️</span>
+      <p><strong>One gateway = one control plane.</strong> Only one gateway process should run at a time on a machine. If you start a second, it will fail on the port or the lock file and exit cleanly.</p>
+    </div>
+  </section>
+
+  <!-- ── MODULE 2: Message Routing ────────────────────────────────────── -->
+  <section class="module" id="routing">
+    <div class="module-header">
+      <span class="module-num">MODULE 2</span>
+    </div>
+    <h2>Message Routing — How Messages Find Their Agent</h2>
+    <p class="intro">OpenClaw can run multiple <span class="g">agents<span class="tip">An agent is a named AI persona with its own system prompt, model choice, and conversation history. You might have "default", "work", and "kids" agents.</span></span>. Routing decides which agent handles each incoming message.</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="box">Message arrives</div>
+        <div class="sub">from Telegram DM</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box highlight">resolveRoute()</div>
+        <div class="sub">looks up bindings</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">agentId + sessionKey</div>
+        <div class="sub">returned</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Agent runner</div>
+        <div class="sub">runs the AI</div>
+      </div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/routing/resolve-route.ts</div>
+<pre><span class="kw">export type</span> <span class="tp">ResolveAgentRouteInput</span> = {
+  cfg: <span class="tp">OpenClawConfig</span>;
+  channel: <span class="tp">string</span>;       <span class="com">// "telegram"</span>
+  accountId?: <span class="tp">string</span>;    <span class="com">// which account</span>
+  peer?: <span class="tp">RoutePeer</span>;      <span class="com">// who sent it</span>
+  parentPeer?: <span class="tp">RoutePeer</span>; <span class="com">// thread parent</span>
+  guildId?: <span class="tp">string</span>;      <span class="com">// Discord server</span>
+  memberRoleIds?: <span class="tp">string</span>[];
+};
+
+<span class="kw">export type</span> <span class="tp">ResolvedAgentRoute</span> = {
+  agentId: <span class="tp">string</span>;        <span class="com">// "default"</span>
+  sessionKey: <span class="tp">string</span>;    <span class="com">// unique session ID</span>
+  mainSessionKey: <span class="tp">string</span>; <span class="com">// DM collapse key</span>
+  matchedBy: <span class="tp">MatchReason</span>; <span class="com">// why this route</span>
+};</pre>
+      </div>
+      <div class="en-side">
+        <div class="label">Plain English</div>
+        <ul>
+          <li>The <strong>input</strong> describes who sent the message: which channel (e.g., "telegram"), which platform account, which user (peer), and whether it's inside a thread.</li>
+          <li>The <strong>output</strong> is a decision: "Send this to agent X, using session key Y."</li>
+          <li><code>agentId</code> is the name of the AI agent ("default", "work", etc.) that should handle this message.</li>
+          <li><code>sessionKey</code> is the unique ID for this conversation thread — the agent's memory is scoped to this key.</li>
+          <li><code>matchedBy</code> tells you <em>why</em> this agent was chosen, useful for debugging ("binding.peer" means the user was explicitly mapped to an agent).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">Binding Priority (highest wins)</h3>
+    <table class="priority-table">
+      <thead>
+        <tr>
+          <th>Priority</th>
+          <th>Match Type</th>
+          <th><code>matchedBy</code> value</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="priority-badge">1</span></td>
+          <td>Direct user binding</td>
+          <td><span class="match-tag">binding.peer</span></td>
+          <td>Your phone number → "personal" agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">2</span></td>
+          <td>Thread parent binding</td>
+          <td><span class="match-tag">binding.peer.parent</span></td>
+          <td>Reply in thread inherits parent's agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">3</span></td>
+          <td>Discord roles</td>
+          <td><span class="match-tag">binding.guild+roles</span></td>
+          <td>@admin role → "ops" agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">4</span></td>
+          <td>Guild / server</td>
+          <td><span class="match-tag">binding.guild</span></td>
+          <td>Discord server → "community" agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">5</span></td>
+          <td>Team / workspace</td>
+          <td><span class="match-tag">binding.team</span></td>
+          <td>Slack workspace → "work" agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">6</span></td>
+          <td>Account</td>
+          <td><span class="match-tag">binding.account</span></td>
+          <td>Secondary WhatsApp number → agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">7</span></td>
+          <td>Channel default</td>
+          <td><span class="match-tag">binding.channel</span></td>
+          <td>All iMessage → "home" agent</td>
+        </tr>
+        <tr>
+          <td><span class="priority-badge">8</span></td>
+          <td>System default</td>
+          <td><span class="match-tag">default</span></td>
+          <td>Anyone else → "default" agent</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">The Session Key</h3>
+    <p style="font-family:var(--font-ui);font-size:14px;color:var(--muted);margin-bottom:16px;">The session key is like a locker number — it identifies exactly which conversation history to load and where to append new messages.</p>
+    <div class="session-key">
+      <div class="sk-row">
+        <div class="sk-part p1">default</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p2">main</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p3">telegram</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p4">123456789</div>
+      </div>
+      <div class="sk-labels">
+        <div class="sk-label">agent ID</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">session type</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">channel</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">peer ID</div>
+      </div>
+    </div>
+
+    <!-- Quiz 1 -->
+    <div class="quiz" data-quiz="1">
+      <div class="q-header"><span class="badge">Quiz</span></div>
+      <h3>A Slack user in a workspace sends a message. That same user also has a direct peer binding configured. Which route wins?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">The team/workspace binding wins, because Slack is team-based.</button>
+        <button class="option" data-correct="true">The direct peer binding wins — it has higher priority than team bindings.</button>
+        <button class="option" data-correct="false">It depends on which was configured first.</button>
+        <button class="option" data-correct="false">Both routes fire and the user gets two responses.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> Peer bindings (priority 1) always win over team bindings (priority 5). The priority table is evaluated top-to-bottom and stops at the first match. This is by design: explicit user-level bindings should always override group-level defaults.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODULE 3: Channels ────────────────────────────────────────────── -->
+  <section class="module" id="channels">
+    <div class="module-header">
+      <span class="module-num">MODULE 3</span>
+    </div>
+    <h2>Channels — Connecting to the World</h2>
+    <p class="intro">A <span class="g">channel plugin<span class="tip">A channel plugin is a package that knows how to connect to one messaging platform — it opens the socket, receives messages, and sends replies.</span></span> is a plugin that connects OpenClaw to one messaging platform. Each channel is independent and can be enabled or disabled in config.</p>
+
+    <div class="chat-anim">
+      <div class="chat-msg" style="animation-delay:0.1s">
+        <div class="avatar">📱</div>
+        <div class="bubble">
+          <div class="name">WhatsApp</div>
+          "Hey, what's on my calendar today?"
+        </div>
+      </div>
+      <div class="chat-msg">
+        <div class="avatar">🤖</div>
+        <div class="bubble">
+          <div class="name">Gateway → resolveRoute()</div>
+          channel=whatsapp peer=+1555…  →  agentId="default"
+        </div>
+      </div>
+      <div class="chat-msg">
+        <div class="avatar">🧠</div>
+        <div class="bubble">
+          <div class="name">Agent Runner</div>
+          Running tools: calendar.list() …
+        </div>
+      </div>
+      <div class="chat-msg right">
+        <div class="avatar">📱</div>
+        <div class="bubble">
+          <div class="name">OpenClaw → WhatsApp</div>
+          "You have a team standup at 9 AM and a dentist at 3 PM."
+        </div>
+      </div>
+      <div class="chat-msg" style="animation-delay:3.5s">
+        <div class="avatar">💬</div>
+        <div class="bubble">
+          <div class="name">Telegram (same agent)</div>
+          "Remind me about the dentist at 2 PM"
+        </div>
+      </div>
+      <div class="chat-msg right" style="animation-delay:4.5s">
+        <div class="avatar">💬</div>
+        <div class="bubble">
+          <div class="name">OpenClaw → Telegram</div>
+          "Reminder set ✓ (same memory as your WhatsApp session)"
+        </div>
+      </div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/channels/plugins/index.ts (simplified)</div>
+<pre><span class="kw">type</span> <span class="tp">ChannelPlugin</span> = {
+  id: <span class="tp">string</span>;         <span class="com">// "telegram", "discord"</span>
+  connect: (
+    cfg: <span class="tp">OpenClawConfig</span>,
+    onMessage: <span class="tp">MessageHandler</span>
+  ) => <span class="tp">Promise</span>&lt;<span class="tp">ChannelConnection</span>&gt;;
+  send: (
+    connection: <span class="tp">ChannelConnection</span>,
+    msg: <span class="tp">OutboundMessage</span>
+  ) => <span class="tp">Promise</span>&lt;<span class="tp">void</span>&gt;;
+  disconnect: () => <span class="tp">Promise</span>&lt;<span class="tp">void</span>&gt;;
+};</pre>
+      </div>
+      <div class="en-side">
+        <div class="label">Plain English</div>
+        <ul>
+          <li>Every channel plugin has the same three-method contract: <strong>connect</strong>, <strong>send</strong>, and <strong>disconnect</strong>.</li>
+          <li><code>connect</code> opens the connection and registers an <code>onMessage</code> callback — when the user sends anything, this fires with the message details.</li>
+          <li><code>send</code> delivers an AI-generated reply back to the right user on that platform.</li>
+          <li><code>disconnect</code> closes the connection cleanly (used on shutdown or config reload).</li>
+          <li>The gateway only calls these three methods — it doesn't need to know anything about WhatsApp's internals vs Telegram's internals.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">Channel Health Monitor</h3>
+    <p style="font-family:var(--font-ui);font-size:14px;color:var(--muted);margin-bottom:20px;">Because messaging platforms can drop connections silently, a health monitor runs in the background:</p>
+    <div class="lifecycle">
+      <div class="lifecycle-step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Heartbeat ping every 60s</div>
+          <div class="step-desc">Each channel plugin reports "alive" or a last-seen timestamp.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Detect stale channel</div>
+          <div class="step-desc">If a channel hasn't responded within its timeout window, it's marked degraded.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Reconnect with backoff</div>
+          <div class="step-desc">The gateway tries to reconnect with exponential backoff — 5s, 10s, 20s…</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Status visible on CLI</div>
+          <div class="step-desc">Run <code>openclaw channels status</code> to see live health of all channels.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quiz 2 -->
+    <div class="quiz" data-quiz="2">
+      <div class="q-header"><span class="badge">Quiz</span></div>
+      <h3>A user messages from WhatsApp. Two hours later, the same user messages from Telegram. Do the two conversations share memory?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">No — different channels always create different sessions.</button>
+        <button class="option" data-correct="false">Yes — all channels share a single global memory.</button>
+        <button class="option" data-correct="true">It depends on the binding: if both channels route to the same agent AND the session keys match (e.g. via a peer binding), memory is shared. Otherwise they are separate sessions.</button>
+        <button class="option" data-correct="false">It depends on whether WhatsApp is the primary channel.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> Session keys include both channel and peer ID by default, so WhatsApp and Telegram create different sessions. But if you configure a peer binding that maps both to the same agent + session key, or use session merging, the histories can be shared. The design is explicit: you opt in to shared memory; it's not automatic.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODULE 4: Agent Runner ────────────────────────────────────────── -->
+  <section class="module" id="agents">
+    <div class="module-header">
+      <span class="module-num">MODULE 4</span>
+    </div>
+    <h2>The Agent Runner — Where AI Thinking Happens</h2>
+    <p class="intro">Once a message is routed, the <span class="g">agent runner<span class="tip">The agent runner (pi-embedded) loads the conversation history, builds a prompt, calls the AI model, streams the reply, and executes any tool calls.</span></span> takes over. It is an embedded version of the Claude Code agent, running inside the gateway process.</p>
+
+    <div class="pipeline-anim">
+      <div class="title">Message pipeline (animated)</div>
+      <div class="pipe-row">
+        <div class="pipe-node channel">📱 Channel</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node router">🗺 Router</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node gateway">⚙️ Gateway</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node agent">🤖 Agent Runner</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node model">🧠 AI Model</div>
+      </div>
+      <div class="pipe-dot" style="top:24px;"></div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/agents/pi-embedded-runner/runs.ts</div>
+<pre><span class="kw">export function</span> <span class="fn">queueEmbeddedPiMessage</span>(
+  sessionId: <span class="tp">string</span>,
+  text: <span class="tp">string</span>
+): <span class="tp">boolean</span> {
+  <span class="kw">const</span> handle = ACTIVE_EMBEDDED_RUNS.<span class="fn">get</span>(sessionId);
+  <span class="kw">if</span> (!handle) {
+    diag.<span class="fn">debug</span>(<span class="str">`no active run for ${sessionId}`</span>);
+    <span class="kw">return false</span>;
+  }
+  <span class="kw">if</span> (handle.<span class="fn">isCompacting</span>()) {
+    <span class="com">// Context window is being trimmed — wait</span>
+    <span class="kw">return false</span>;
+  }
+  <span class="kw">void</span> handle.<span class="fn">queueMessage</span>(text);
+  <span class="kw">return true</span>;
+}</pre>
+      </div>
+      <div class="en-side">
+        <div class="label">Plain English</div>
+        <ul>
+          <li>Each active conversation is an "embedded run" — a live agent loop that can receive messages while already running.</li>
+          <li>Messages can arrive while the agent is mid-stream (e.g. you send a follow-up while it's still replying). They get queued and processed in order.</li>
+          <li>If the agent is currently compacting (trimming old messages to fit the context window), new messages wait — no data loss, just a short hold.</li>
+          <li>Returning <code>false</code> means the message wasn't queued (no active session). The caller then spawns a fresh session.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">What the Agent Can Do (Tools)</h3>
+    <div class="cards-3">
+      <div class="card">
+        <h3>🖥️ Bash</h3>
+        <p>Execute shell commands on your machine. Requires explicit approval by default — a security gate you can configure per-command or globally.</p>
+      </div>
+      <div class="card">
+        <h3>📁 Files</h3>
+        <p>Read and write files on the gateway host. Scoped to allowed directories defined in config.</p>
+      </div>
+      <div class="card">
+        <h3>🌐 Web Search</h3>
+        <p>Search the web via Brave, Exa, DuckDuckGo, or other search providers installed as plugins.</p>
+      </div>
+      <div class="card">
+        <h3>🖼️ Image Gen</h3>
+        <p>Generate images via fal.ai, Replicate, or other image providers. Image is sent back to the originating channel.</p>
+      </div>
+      <div class="card">
+        <h3>🔗 Skills</h3>
+        <p>User-defined skills (markdown files with instructions) that extend the agent's knowledge for specific tasks.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 Sub-agents</h3>
+        <p>Spawn child agents (ACP) for parallel work or specialized tasks. Results flow back to the parent session.</p>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <span class="icon">🔒</span>
+      <p><strong>Bash tool approval flow.</strong> When the agent wants to run a shell command, it sends an approval request to the connected client (CLI or app). The user gets a diff-style preview and can Approve, Deny, or Always-allow. This is the core security model — you stay in control.</p>
+    </div>
+
+    <!-- Quiz 3 -->
+    <div class="quiz" data-quiz="3">
+      <div class="q-header"><span class="badge">Quiz</span></div>
+      <h3>A user is chatting with the agent, and it's streaming a long reply. The user sends another message mid-stream. What happens?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">The stream is cancelled and a new request starts from scratch.</button>
+        <button class="option" data-correct="false">The new message is ignored until the user sends it again after the stream ends.</button>
+        <button class="option" data-correct="true">The message is queued inside the active embedded run and processed after the current stream finishes — no message is lost.</button>
+        <button class="option" data-correct="false">A second agent session is spawned to handle the new message in parallel.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> <code>queueEmbeddedPiMessage</code> adds the new message to the active run's internal queue. The agent processes it immediately after finishing the current turn. This design avoids race conditions and ensures conversation continuity even when messages arrive rapidly.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODULE 5: Plugin System ───────────────────────────────────────── -->
+  <section class="module" id="plugins">
+    <div class="module-header">
+      <span class="module-num">MODULE 5</span>
+    </div>
+    <h2>The Plugin System — Adding New Powers</h2>
+    <p class="intro">OpenClaw's plugin system lets you add new <span class="g">channels<span class="tip">Channel plugins add new messaging platforms. They live in extensions/ and expose connect/send/disconnect.</span></span>, model providers, tools, and skills — without touching core code. Plugins are standard npm packages.</p>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">extensions/discord/openclaw.plugin.json</div>
+<pre>{
+  <span class="field">"id"</span>: <span class="str">"discord"</span>,
+  <span class="field">"name"</span>: <span class="str">"Discord"</span>,
+  <span class="field">"version"</span>: <span class="str">"2026.3.1"</span>,
+  <span class="field">"openclaw"</span>: {
+    <span class="field">"channel"</span>: {
+      <span class="field">"id"</span>: <span class="str">"discord"</span>,
+      <span class="field">"displayName"</span>: <span class="str">"Discord"</span>
+    },
+    <span class="field">"install"</span>: {
+      <span class="field">"npmSpec"</span>: <span class="str">"@openclaw/discord"</span>
+    }
+  }
+}</pre>
+      </div>
+      <div class="en-side">
+        <div class="label">Plain English</div>
+        <ul>
+          <li>Every plugin declares its identity with a JSON manifest — <code>id</code> is the stable identifier, <code>name</code> is the display name.</li>
+          <li>The <code>openclaw.channel</code> section tells the gateway that this plugin provides a channel with that ID — the gateway then calls <code>connect</code>/<code>send</code>/<code>disconnect</code> on the plugin's exports.</li>
+          <li><code>openclaw.install.npmSpec</code> is the npm package name used by <code>openclaw plugins install discord</code>.</li>
+          <li>Plugins are installed via npm into a dedicated plugins directory — they never pollute the core installation.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">Plugin Lifecycle</h3>
+    <div class="lifecycle">
+      <div class="lifecycle-step">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Install</div>
+          <div class="step-desc"><code>openclaw plugins install &lt;name&gt;</code> — runs npm install in the plugins directory.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Register</div>
+          <div class="step-desc">On next gateway start, the plugin loader scans the plugins directory, reads the manifest, and adds the plugin to the registry.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Activate</div>
+          <div class="step-desc">The gateway calls the plugin's <code>activate(runtime)</code> export, injecting the plugin runtime API — config, sessions, tools, hooks.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Run</div>
+          <div class="step-desc">Channel plugins connect to their platform. Tool plugins register their tools. Hook plugins subscribe to gateway events.</div>
+        </div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="step-num">5</div>
+        <div>
+          <div class="step-title">Update / Remove</div>
+          <div class="step-desc"><code>openclaw plugins update</code> / <code>openclaw plugins remove &lt;name&gt;</code> — changes take effect on next gateway restart.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">Plugin Types</h3>
+    <div class="cards-2">
+      <div class="card">
+        <h3>📡 Channel Plugin</h3>
+        <p>Connects to a messaging platform. Provides <code>connect</code>, <code>send</code>, <code>disconnect</code>. Examples: <code>@openclaw/discord</code>, <code>@openclaw/matrix</code>, <code>@openclaw/msteams</code>.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 Provider Plugin</h3>
+        <p>Wraps an AI API. Translates OpenClaw's model interface to the provider's SDK. Examples: <code>@openclaw/anthropic</code>, <code>@openclaw/amazon-bedrock</code>, <code>@openclaw/deepseek</code>.</p>
+      </div>
+      <div class="card">
+        <h3>🔧 Tool Plugin</h3>
+        <p>Adds a callable tool to the agent. The agent can invoke it by name. Examples: web search, calendar integration, custom APIs.</p>
+      </div>
+      <div class="card">
+        <h3>🪝 Hook Plugin</h3>
+        <p>Subscribes to gateway events: message.in, message.out, session.start, tool.exec. Use for logging, analytics, forwarding.</p>
+      </div>
+    </div>
+
+    <!-- Quiz 4 -->
+    <div class="quiz" data-quiz="4">
+      <div class="q-header"><span class="badge">Quiz</span></div>
+      <h3>You want to add Microsoft Teams support. The core repo doesn't have it. What's the correct approach?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">Fork the core repo and add Teams support directly to <code>src/channels/</code>.</button>
+        <button class="option" data-correct="true">Install the <code>@openclaw/msteams</code> channel plugin (<code>openclaw plugins install msteams</code>) — it already exists as an extension in <code>extensions/msteams</code>.</button>
+        <button class="option" data-correct="false">Edit <code>src/gateway/server.impl.ts</code> to hardcode Teams credentials.</button>
+        <button class="option" data-correct="false">Teams support requires a complete rebuild of the gateway binary.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> Teams support lives in <code>extensions/msteams</code> as a plugin package. The plugin system is designed so all channels are optional plugins — none of them are hardcoded into core. This keeps the core small and lets channels be updated independently.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODULE 6: Putting It Together ────────────────────────────────── -->
+  <section class="module" id="together">
+    <div class="module-header">
+      <span class="module-num">MODULE 6</span>
+    </div>
+    <h2>Putting It All Together — End-to-End Flow</h2>
+    <p class="intro">Let's trace a real message from first byte to final reply — touching every piece of the system you've learned.</p>
+
+    <div class="flow" style="flex-wrap:wrap;gap:8px;">
+      <div class="flow-step">
+        <div class="box" style="background:var(--accent-lt);border-color:var(--accent);">📱 User types</div>
+        <div class="sub">"summarize today's emails"</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Channel Plugin</div>
+        <div class="sub">receives via WebSocket/poll</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Gateway</div>
+        <div class="sub">calls resolveRoute()</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Agent Runner</div>
+        <div class="sub">loads transcript</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">AI Model</div>
+        <div class="sub">calls email tool</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Tool Executor</div>
+        <div class="sub">approval if needed</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Gateway</div>
+        <div class="sub">streams reply</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box" style="background:var(--accent-lt);border-color:var(--accent);">📱 User sees reply</div>
+        <div class="sub">within seconds</div>
+      </div>
+    </div>
+
+    <div class="cards-2">
+      <div class="card">
+        <h3>🗂️ Session Transcript</h3>
+        <p>Every turn (user message + assistant reply + tool calls) is saved to a <span class="g">JSONL<span class="tip">JSON Lines — one JSON object per line. Easy to stream-write and stream-read without loading the whole file.</span></span> file in <code>~/.openclaw/agents/&lt;id&gt;/sessions/*.jsonl</code>. The agent loads this on each turn to remember the conversation.</p>
+      </div>
+      <div class="card">
+        <h3>⚡ Streaming</h3>
+        <p>Replies stream token-by-token from the AI model through the agent, gateway, and channel — so users see the answer appearing in real time, not waiting for the full response before delivery.</p>
+      </div>
+      <div class="card">
+        <h3>🔄 Config Hot-Reload</h3>
+        <p>Edit <code>~/.openclaw/config.json</code> and save. The gateway detects the change, validates the new config, and reconnects any channels that changed — without a restart or dropped messages.</p>
+      </div>
+      <div class="card">
+        <h3>🌲 Context Compaction</h3>
+        <p>When a conversation grows too long for the AI's context window, the agent compacts: it summarizes old turns into a dense block and trims the transcript. Your conversation continues seamlessly.</p>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="icon">🗺️</span>
+      <p><strong>Where to look when something breaks.</strong> Wrong reply? Check agent bindings in config. No reply at all? Check <code>openclaw channels status</code> for disconnected channels. Slow reply? Check model timeout settings. Bash tool not running? Check approval policy in config.</p>
+    </div>
+  </section>
+
+  <!-- ── MODULE 7 (QUIZ) ───────────────────────────────────────────────── -->
+  <section class="module" id="quiz">
+    <div class="module-header">
+      <span class="module-num">FINAL QUIZ</span>
+    </div>
+    <h2>Apply What You've Learned</h2>
+    <p class="intro">These questions test whether you can use your OpenClaw knowledge to solve real problems — not just recall facts.</p>
+
+    <!-- Quiz 5 -->
+    <div class="quiz" data-quiz="5">
+      <div class="q-header"><span class="badge">Quiz 5</span></div>
+      <h3>A new contributor says "I want OpenClaw to support a new messaging app — which files should I change?" What's the right answer?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">Edit <code>src/routing/resolve-route.ts</code> to add a new channel type.</button>
+        <button class="option" data-correct="false">Edit <code>src/gateway/server.impl.ts</code> to add a new case in the channel switch statement.</button>
+        <button class="option" data-correct="true">Create a new plugin package under <code>extensions/</code> with a <code>openclaw.plugin.json</code> manifest and implement the channel interface (connect/send/disconnect).</button>
+        <button class="option" data-correct="false">Fork the repo and add native support in <code>src/channels/</code>.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> New channels are always plugins — never hardcoded into core. Create your package under <code>extensions/</code>, define the <code>openclaw.plugin.json</code> manifest, implement the three-method channel interface, and publish to npm. Users install with <code>openclaw plugins install &lt;your-plugin&gt;</code>.
+      </div>
+    </div>
+
+    <!-- Quiz 6 -->
+    <div class="quiz" data-quiz="6">
+      <div class="q-header"><span class="badge">Quiz 6</span></div>
+      <h3>OpenClaw isn't responding on Telegram, but WhatsApp works fine. Where do you look first?</h3>
+      <div class="options">
+        <button class="option" data-correct="false">Restart the AI model provider — the problem is likely with Claude/OpenAI.</button>
+        <button class="option" data-correct="true">Run <code>openclaw channels status --probe</code> — check if the Telegram channel shows as connected or degraded.</button>
+        <button class="option" data-correct="false">Check the session transcript — maybe the conversation was compacted incorrectly.</button>
+        <button class="option" data-correct="false">Review the binding config — Telegram messages might be routing to a different agent.</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ Correct.</strong> Since WhatsApp works, the gateway and AI model are fine. The issue is channel-specific: the Telegram connection is likely disconnected or degraded. <code>channels status --probe</code> actively probes each channel and reports its health. From there you'd check Telegram credentials or run a reconnect.
+      </div>
+    </div>
+
+    <div class="finish-card">
+      <h2>🎉 Course Complete!</h2>
+      <p>You now understand how OpenClaw routes messages, runs agents, manages plugins, and stays resilient. You're ready to build on it, debug it, or extend it with confidence.</p>
+      <a href="https://docs.openclaw.ai" class="btn" target="_blank" rel="noopener noreferrer">Read the Full Docs →</a>
+    </div>
+
+    <h3 style="font-size:22px;margin-bottom:20px;">Glossary</h3>
+    <div class="cards-2">
+      <div class="card">
+        <h3>Gateway</h3>
+        <p>The long-running WebSocket + HTTP server that is the control plane. Runs on port 18789 by default. All channels, agents, and clients connect through it.</p>
+      </div>
+      <div class="card">
+        <h3>Agent</h3>
+        <p>A named AI persona with its own system prompt, model, and conversation history. You can have multiple agents for different purposes or audiences.</p>
+      </div>
+      <div class="card">
+        <h3>Channel Plugin</h3>
+        <p>An npm package that connects to one messaging platform. Exposes <code>connect</code>, <code>send</code>, <code>disconnect</code>. All channels are plugins — none are hardcoded into core.</p>
+      </div>
+      <div class="card">
+        <h3>Session Key</h3>
+        <p>The unique identifier for a conversation thread: <code>agentId:type:channel:peerId</code>. The agent's memory is scoped to this key — separate keys mean separate memories.</p>
+      </div>
+      <div class="card">
+        <h3>Binding</h3>
+        <p>A config rule that maps a user (peer), group (guild), or channel to a specific agent. Higher-priority bindings win. Without any binding, messages go to the default agent.</p>
+      </div>
+      <div class="card">
+        <h3>Embedded Run</h3>
+        <p>An active agent session with a live AI loop. Messages are queued into it while it streams. Each session key has at most one embedded run at a time.</p>
+      </div>
+      <div class="card">
+        <h3>Context Compaction</h3>
+        <p>When a conversation exceeds the AI model's context window, old turns are summarized and trimmed. The conversation continues without data loss — just compression.</p>
+      </div>
+      <div class="card">
+        <h3>ACP (Agent Control Plane)</h3>
+        <p>The system for spawning child agents (sub-agents) from a parent agent. Used for parallel work or specialized tasks. Results stream back to the parent session.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // ── Progress bar ──────────────────────────────────────────────────────────
+  const progressBar = document.getElementById('progress-bar');
+  function updateProgress() {
+    const scrolled = window.scrollY;
+    const total = document.body.scrollHeight - window.innerHeight;
+    progressBar.style.width = (total > 0 ? (scrolled / total) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+
+  // ── Sidebar active state ──────────────────────────────────────────────────
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('#sidebar nav a[data-section]');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.dataset.section === id);
+        });
+      }
+    });
+  }, { threshold: 0.25 });
+  sections.forEach(s => observer.observe(s));
+
+  // ── Keyboard navigation ───────────────────────────────────────────────────
+  const sectionIds = ['hero','intro','gateway','routing','channels','agents','plugins','together','quiz'];
+  let currentIdx = 0;
+  function scrollToSection(idx) {
+    idx = Math.max(0, Math.min(sectionIds.length - 1, idx));
+    const el = document.getElementById(sectionIds[idx]);
+    if (el) { el.scrollIntoView({ behavior: 'smooth' }); currentIdx = idx; }
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowDown' || e.key === 'j') scrollToSection(currentIdx + 1);
+    if (e.key === 'ArrowUp'   || e.key === 'k') scrollToSection(currentIdx - 1);
+  });
+
+  // ── Quiz interactions ─────────────────────────────────────────────────────
+  document.querySelectorAll('.quiz').forEach(quiz => {
+    const options = quiz.querySelectorAll('.option');
+    const explanation = quiz.querySelector('.explanation');
+    let answered = false;
+    options.forEach(opt => {
+      opt.addEventListener('click', () => {
+        if (answered) return;
+        answered = true;
+        const correct = opt.dataset.correct === 'true';
+        opt.classList.add(correct ? 'correct' : 'wrong');
+        if (!correct) {
+          // Reveal the correct one
+          options.forEach(o => { if (o.dataset.correct === 'true') o.classList.add('correct'); });
+        }
+        options.forEach(o => { o.style.cursor = 'default'; });
+        explanation.classList.add('visible');
+      });
+    });
+  });
+
+  // ── Scroll-update current section index ──────────────────────────────────
+  window.addEventListener('scroll', () => {
+    sectionIds.forEach((id, idx) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.top <= window.innerHeight / 2 && rect.bottom >= 0) {
+        currentIdx = idx;
+      }
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>

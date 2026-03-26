@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw 工作原理 — 互动课程</title>
+  <style>
+    :root {
+      --bg:        #fdf8f4;
+      --bg-card:   #ffffff;
+      --bg-code:   #1e1e2e;
+      --accent:    #e05c37;
+      --accent-lt: #fce9e3;
+      --accent2:   #f5a623;
+      --text:      #1a1a1a;
+      --muted:     #6b7280;
+      --border:    #e8ddd5;
+      --tag-bg:    #fdf0e8;
+      --tag-text:  #c04a1e;
+      --quiz-bg:   #fffbf0;
+      --quiz-border:#f5c842;
+      --correct:   #2ecc71;
+      --wrong:     #e74c3c;
+      --font-body: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+      --font-ui:   'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-code: 'Consolas', 'Monaco', monospace;
+      --radius:    12px;
+      --shadow:    0 2px 12px rgba(0,0,0,0.07);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.8; font-size: 16px; }
+
+    #progress-bar { position: fixed; top: 0; left: 0; height: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; z-index: 1000; transition: width 0.2s ease; }
+
+    #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 220px; background: var(--bg-card); border-right: 1px solid var(--border); padding: 28px 0; z-index: 100; overflow-y: auto; display: flex; flex-direction: column; }
+    #sidebar .logo { font-family: var(--font-ui); font-weight: 700; font-size: 17px; color: var(--accent); padding: 0 20px 20px; border-bottom: 1px solid var(--border); }
+    #sidebar .logo span { font-size: 22px; }
+    #sidebar nav { padding: 16px 0; flex: 1; }
+    #sidebar nav a { display: flex; align-items: center; gap: 8px; padding: 9px 20px; font-family: var(--font-ui); font-size: 13px; color: var(--muted); text-decoration: none; border-left: 3px solid transparent; transition: all 0.15s; }
+    #sidebar nav a:hover, #sidebar nav a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-lt); }
+    #sidebar nav a .num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--border); font-size: 11px; flex-shrink: 0; color: var(--muted); }
+    #sidebar nav a.active .num { background: var(--accent); color: #fff; }
+    #sidebar .kbd-hint { padding: 12px 20px; font-family: var(--font-ui); font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); }
+    #sidebar .kbd-hint kbd { background: var(--border); border-radius: 3px; padding: 1px 5px; font-size: 11px; }
+
+    #main { margin-left: 220px; }
+
+    .hero { background: linear-gradient(135deg, #fff5f0 0%, #fdf8f4 100%); border-bottom: 1px solid var(--border); padding: 80px 60px 60px; }
+    .hero .badge { display: inline-block; background: var(--tag-bg); color: var(--tag-text); font-family: var(--font-ui); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .hero h1 { font-size: 44px; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p.lead { font-size: 18px; color: var(--muted); max-width: 560px; margin-bottom: 32px; }
+    .hero .meta { display: flex; gap: 32px; }
+    .hero .meta .item { font-family: var(--font-ui); font-size: 14px; color: var(--muted); }
+    .hero .meta .item strong { color: var(--text); display: block; font-size: 22px; }
+
+    .module { max-width: 900px; margin: 0 auto; padding: 72px 60px; border-bottom: 1px solid var(--border); }
+    .module-header { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; }
+    .module-num { font-family: var(--font-ui); font-size: 13px; font-weight: 700; color: var(--accent); background: var(--accent-lt); padding: 4px 12px; border-radius: 20px; }
+    .module h2 { font-size: 30px; color: var(--text); line-height: 1.3; margin-bottom: 16px; }
+    .module .intro { font-size: 17px; color: var(--muted); margin-bottom: 40px; max-width: 680px; }
+
+    .card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+    .card h3 { font-size: 18px; margin-bottom: 10px; }
+    .card p { color: var(--muted); font-size: 14px; }
+    .cards-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .cards-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+
+    .code-trans { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); margin-bottom: 32px; box-shadow: var(--shadow); }
+    .code-trans .code-side { background: var(--bg-code); padding: 28px; font-family: var(--font-code); font-size: 13px; line-height: 1.6; color: #cdd6f4; overflow-x: auto; }
+    .code-trans .code-side .label { font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: #6c7086; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+    .code-trans .zh-side { background: #fff9f5; padding: 28px; border-left: 1px solid var(--border); }
+    .code-trans .zh-side .label { font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+    .code-trans .zh-side ul { list-style: none; }
+    .code-trans .zh-side ul li { padding: 8px 0; border-bottom: 1px solid var(--border); font-family: var(--font-ui); font-size: 14px; color: var(--text); display: flex; align-items: flex-start; gap: 10px; }
+    .code-trans .zh-side ul li:last-child { border-bottom: none; }
+    .code-trans .zh-side ul li::before { content: "→"; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+    .kw { color: #cba6f7; } .fn { color: #89b4fa; } .str { color: #a6e3a1; } .com { color: #585b70; font-style: italic; } .tp { color: #f38ba8; } .num { color: #fab387; } .field { color: #f9e2af; }
+
+    .flow { display: flex; align-items: center; gap: 0; margin: 32px 0; overflow-x: auto; padding-bottom: 4px; }
+    .flow-step { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 110px; }
+    .flow-step .box { background: var(--bg-card); border: 2px solid var(--border); border-radius: 10px; padding: 12px 14px; text-align: center; font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; cursor: default; transition: all 0.2s; }
+    .flow-step .box:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+    .flow-step .sub { font-family: var(--font-ui); font-size: 11px; color: var(--muted); text-align: center; max-width: 100px; }
+    .flow-arrow { font-size: 22px; color: var(--accent); padding: 0 4px; flex-shrink: 0; margin-bottom: 28px; }
+    .flow-step .box.highlight { border-color: var(--accent); background: var(--accent-lt); }
+
+    .pipeline-anim { background: var(--bg-code); border-radius: var(--radius); padding: 32px; margin-bottom: 32px; position: relative; overflow: hidden; }
+    .pipeline-anim .title { font-family: var(--font-ui); font-size: 13px; color: #6c7086; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pipe-row { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+    .pipe-node { padding: 10px 14px; border-radius: 8px; font-family: var(--font-ui); font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .pipe-node.channel { background: #313244; color: #89dceb; border: 1px solid #45475a; }
+    .pipe-node.router  { background: #313244; color: #a6e3a1; border: 1px solid #45475a; }
+    .pipe-node.gateway { background: #313244; color: #fab387; border: 1px solid #45475a; }
+    .pipe-node.agent   { background: #313244; color: #cba6f7; border: 1px solid #45475a; }
+    .pipe-node.model   { background: #313244; color: #f9e2af; border: 1px solid #45475a; }
+    .pipe-arrow-dark { font-size: 20px; color: #585b70; padding: 0 8px; }
+    .pipe-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); position: absolute; animation: flow-dot 3s ease-in-out infinite; opacity: 0; }
+    @keyframes flow-dot { 0% { left: 40px; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: calc(100% - 60px); opacity: 0; } }
+
+    .arch-diagram { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: 40px; margin-bottom: 32px; }
+    .arch-center { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .arch-gateway { background: linear-gradient(135deg, #fff5f0, #fde8e0); border: 2px solid var(--accent); border-radius: 16px; padding: 20px 40px; font-family: var(--font-ui); font-weight: 700; font-size: 18px; color: var(--accent); }
+    .arch-ring { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .arch-node { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--text); text-align: center; transition: all 0.2s; cursor: default; }
+    .arch-node:hover { border-color: var(--accent); color: var(--accent); }
+    .arch-line { width: 2px; height: 28px; background: var(--border); margin: 0 auto; }
+    .arch-channels { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .arch-channel-tag { background: var(--tag-bg); color: var(--tag-text); font-family: var(--font-ui); font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+
+    .g { color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: help; position: relative; }
+    .g .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e1e2e; color: #cdd6f4; font-family: var(--font-ui); font-size: 13px; line-height: 1.6; padding: 10px 14px; border-radius: 8px; z-index: 200; max-width: 280px; white-space: normal; text-align: left; box-shadow: 0 4px 20px rgba(0,0,0,0.3); pointer-events: none; }
+    .g .tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #1e1e2e; }
+    .g:hover .tip { display: block; }
+
+    .quiz { background: var(--quiz-bg); border: 2px solid var(--quiz-border); border-radius: var(--radius); padding: 32px; margin-bottom: 32px; }
+    .quiz .q-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .quiz .q-header .badge { background: var(--quiz-border); color: #7a5700; font-family: var(--font-ui); font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; }
+    .quiz h3 { font-size: 17px; margin-bottom: 20px; line-height: 1.5; }
+    .quiz .options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz .option { background: var(--bg-card); border: 2px solid var(--border); border-radius: 8px; padding: 14px 18px; font-family: var(--font-ui); font-size: 14px; cursor: pointer; transition: all 0.15s; text-align: left; }
+    .quiz .option:hover { border-color: var(--accent2); }
+    .quiz .option.correct { border-color: var(--correct); background: #f0fdf4; color: #166534; }
+    .quiz .option.wrong   { border-color: var(--wrong); background: #fef2f2; color: #991b1b; }
+    .quiz .explanation { margin-top: 20px; padding: 16px; background: var(--bg-card); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; font-family: var(--font-ui); font-size: 14px; display: none; }
+    .quiz .explanation.visible { display: block; }
+
+    .chat-anim { background: #1e1e2e; border-radius: var(--radius); padding: 28px; font-family: var(--font-ui); font-size: 13px; margin-bottom: 32px; min-height: 220px; overflow: hidden; }
+    .chat-msg { display: flex; gap: 10px; margin-bottom: 14px; opacity: 0; transform: translateY(8px); animation: msg-in 0.4s forwards; }
+    .chat-msg .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .chat-msg .bubble { background: #313244; border-radius: 0 12px 12px 12px; padding: 10px 14px; color: #cdd6f4; max-width: 320px; }
+    .chat-msg .name { font-size: 11px; color: #6c7086; margin-bottom: 4px; font-weight: 600; }
+    .chat-msg.right { flex-direction: row-reverse; }
+    .chat-msg.right .bubble { border-radius: 12px 0 12px 12px; color: #a6e3a1; }
+    @keyframes msg-in { to { opacity: 1; transform: translateY(0); } }
+    .chat-msg:nth-child(2) { animation-delay: 0.6s; }
+    .chat-msg:nth-child(3) { animation-delay: 1.3s; }
+    .chat-msg:nth-child(4) { animation-delay: 2.1s; }
+    .chat-msg:nth-child(5) { animation-delay: 3.0s; }
+    .chat-msg:nth-child(6) { animation-delay: 3.8s; }
+
+    .callout { border-radius: var(--radius); padding: 20px 24px; margin-bottom: 28px; display: flex; gap: 14px; align-items: flex-start; }
+    .callout.info { background: #eff6ff; border: 1px solid #bfdbfe; }
+    .callout.warn { background: var(--quiz-bg); border: 1px solid var(--quiz-border); }
+    .callout.tip  { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .callout .icon { font-size: 20px; flex-shrink: 0; }
+    .callout p { font-family: var(--font-ui); font-size: 14px; color: var(--text); }
+    .callout p strong { display: block; margin-bottom: 4px; font-size: 15px; }
+
+    .session-key { background: var(--bg-code); border-radius: var(--radius); padding: 28px; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
+    .session-key .sk-row { display: flex; gap: 0; align-items: stretch; border-radius: 8px; overflow: hidden; }
+    .session-key .sk-part { padding: 12px 18px; font-size: 14px; text-align: center; font-weight: 700; font-family: var(--font-ui); }
+    .session-key .sk-part.p1 { background: #45475a; color: #89dceb; }
+    .session-key .sk-part.p2 { background: #313244; color: #a6e3a1; }
+    .session-key .sk-part.p3 { background: #45475a; color: #fab387; }
+    .session-key .sk-part.p4 { background: #313244; color: #cba6f7; }
+    .session-key .sk-sep { background: #1e1e2e; color: #585b70; padding: 12px 6px; font-size: 18px; display: flex; align-items: center; }
+    .session-key .sk-labels { display: flex; gap: 0; }
+    .session-key .sk-label { flex: 1; text-align: center; font-family: var(--font-ui); font-size: 11px; color: #6c7086; padding-top: 6px; }
+
+    .priority-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+    .priority-table th { background: var(--bg-code); color: #6c7086; font-family: var(--font-ui); font-size: 12px; padding: 12px 16px; text-align: left; }
+    .priority-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-family: var(--font-ui); font-size: 14px; }
+    .priority-table tr:last-child td { border-bottom: none; }
+    .priority-table tr:hover td { background: var(--accent-lt); }
+    .priority-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+    .match-tag { font-family: var(--font-code); font-size: 12px; background: var(--bg-code); color: #a6e3a1; padding: 2px 8px; border-radius: 4px; }
+
+    .lifecycle { display: flex; flex-direction: column; gap: 0; margin-bottom: 32px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .lifecycle-step { display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--border); font-family: var(--font-ui); font-size: 14px; transition: background 0.15s; }
+    .lifecycle-step:last-child { border-bottom: none; }
+    .lifecycle-step:hover { background: var(--accent-lt); }
+    .lifecycle-step .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-lt); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+    .lifecycle-step .step-title { font-weight: 600; }
+    .lifecycle-step .step-desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .feature-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .feature-item .icon { font-size: 28px; margin-bottom: 10px; }
+    .feature-item h4 { font-family: var(--font-ui); font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .feature-item p { font-family: var(--font-ui); font-size: 13px; color: var(--muted); }
+
+    code { font-family: var(--font-code); font-size: 13px; background: #f1ede8; padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+
+    .finish-card { background: linear-gradient(135deg, var(--accent-lt), #fff); border: 2px solid var(--accent); border-radius: 16px; padding: 48px; text-align: center; margin-bottom: 40px; }
+    .finish-card h2 { font-size: 32px; margin-bottom: 12px; }
+    .finish-card p { font-size: 17px; color: var(--muted); margin-bottom: 24px; }
+    .finish-card .btn { display: inline-block; background: var(--accent); color: #fff; font-family: var(--font-ui); font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 8px; text-decoration: none; transition: opacity 0.15s; }
+    .finish-card .btn:hover { opacity: 0.85; }
+
+    .lang-switch { position: fixed; top: 12px; right: 16px; z-index: 200; }
+    .lang-switch a { font-family: var(--font-ui); font-size: 13px; color: var(--muted); text-decoration: none; background: var(--bg-card); border: 1px solid var(--border); padding: 4px 12px; border-radius: 20px; }
+    .lang-switch a:hover { color: var(--accent); border-color: var(--accent); }
+
+    @media (max-width: 860px) {
+      #sidebar { display: none; }
+      #main { margin-left: 0; }
+      .code-trans { grid-template-columns: 1fr; }
+      .cards-2, .cards-3, .feature-grid { grid-template-columns: 1fr; }
+      .hero, .module { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<div class="lang-switch"><a href="index.html">English</a></div>
+
+<nav id="sidebar">
+  <div class="logo"><span>🦞</span> OpenClaw 课程</div>
+  <nav>
+    <a href="#intro"    data-section="intro"><span class="num">0</span>什么是 OpenClaw？</a>
+    <a href="#gateway"  data-section="gateway"><span class="num">1</span>网关</a>
+    <a href="#routing"  data-section="routing"><span class="num">2</span>消息路由</a>
+    <a href="#channels" data-section="channels"><span class="num">3</span>消息渠道</a>
+    <a href="#agents"   data-section="agents"><span class="num">4</span>Agent 执行器</a>
+    <a href="#plugins"  data-section="plugins"><span class="num">5</span>插件系统</a>
+    <a href="#together" data-section="together"><span class="num">6</span>完整流程</a>
+    <a href="#quiz"     data-section="quiz"><span class="num">★</span>综合测验</a>
+  </nav>
+  <div class="kbd-hint"><kbd>↑</kbd><kbd>↓</kbd> 切换模块</div>
+</nav>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <div class="badge">互动课程</div>
+    <h1><em>OpenClaw</em> 工作原理</h1>
+    <p class="lead">从一条 WhatsApp 消息到 AI 回复，完整追踪 OpenClaw 内部每一个关键环节。</p>
+    <div class="meta">
+      <div class="item"><strong>8</strong>个模块</div>
+      <div class="item"><strong>6</strong>道测验</div>
+      <div class="item"><strong>约 30 分钟</strong>阅读</div>
+    </div>
+  </section>
+
+  <!-- MODULE 0 -->
+  <section class="module" id="intro">
+    <div class="module-header"><span class="module-num">第 0 模块</span></div>
+    <h2>什么是 OpenClaw？</h2>
+    <p class="intro">OpenClaw 是一个<strong>私有、自托管的 AI 助手</strong>，运行在你自己的设备上，通过你已经在用的任意聊天 App 与你对话。</p>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="icon">💬</div>
+        <h4>任意渠道</h4>
+        <p>WhatsApp、Telegram、Discord、Slack、Signal、iMessage、微信等 20+ 平台，统一接入一个助手。</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🧠</div>
+        <h4>任意模型</h4>
+        <p>Claude、OpenAI、Ollama、本地模型，30+ 供应商，切换模型无需改动其他配置。</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔌</div>
+        <h4>高度可扩展</h4>
+        <p>渠道插件、工具插件、技能插件，不修改核心代码就能添加新能力。</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🔒</div>
+        <h4>数据在你手中</h4>
+        <p>运行在你的树莓派、VPS 或 Mac 上。除非你选择云端 AI 供应商，否则数据不会离开本地。</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">⚡</div>
+        <h4>持续在线</h4>
+        <p>以守护进程（launchd/systemd）方式运行，自动重启、监听配置变更、处理断线重连。</p>
+      </div>
+      <div class="feature-item">
+        <div class="icon">🛠️</div>
+        <h4>工具执行</h4>
+        <p>Bash 命令、文件读写、网络搜索、图片生成，内置审批流程，安全可控。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:22px;margin-bottom:16px;">总体架构</h3>
+    <div class="arch-diagram">
+      <div class="arch-center">
+        <div class="arch-channels">
+          <span class="arch-channel-tag">WhatsApp</span>
+          <span class="arch-channel-tag">Telegram</span>
+          <span class="arch-channel-tag">Discord</span>
+          <span class="arch-channel-tag">Slack</span>
+          <span class="arch-channel-tag">Signal</span>
+          <span class="arch-channel-tag">iMessage</span>
+          <span class="arch-channel-tag">微信</span>
+          <span class="arch-channel-tag">更多…</span>
+        </div>
+        <div style="height:32px;width:2px;background:var(--border);margin:0 auto;"></div>
+        <div class="arch-gateway">🦞 OpenClaw Gateway（网关）</div>
+        <div style="height:32px;width:2px;background:var(--border);margin:0 auto;"></div>
+        <div class="arch-ring">
+          <div class="arch-node">🤖 Claude</div>
+          <div class="arch-node">🤖 GPT-4</div>
+          <div class="arch-node">🤖 Ollama</div>
+          <div class="arch-node">🔧 工具</div>
+          <div class="arch-node">💾 会话</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="icon">💡</span>
+      <p><strong>核心心智模型：网关是总交换机。</strong>一侧接入各个渠道，另一侧连接 AI 供应商。网关负责路由、记录和回复，Agent 执行器负责真正的"思考"。</p>
+    </div>
+  </section>
+
+  <!-- MODULE 1 -->
+  <section class="module" id="gateway">
+    <div class="module-header"><span class="module-num">第 1 模块</span></div>
+    <h2>网关 — 你的控制中心</h2>
+    <p class="intro"><span class="g">网关<span class="tip">一个长期运行的 WebSocket + HTTP 服务器（默认端口 18789），是 OpenClaw 所有活动的控制平面。</span></span>是 OpenClaw 的核心，一个 7×24 小时运行的 WebSocket + HTTP 服务器，负责协调一切。</p>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/gateway/server.impl.ts</div>
+<pre><span class="kw">async function</span> <span class="fn">startGatewayServer</span>(
+  options: <span class="tp">GatewayServerOptions</span>
+) {
+  <span class="com">// 1. 从 ~/.openclaw/config.json 加载配置</span>
+  <span class="kw">const</span> <span class="field">cfg</span> = <span class="kw">await</span> <span class="fn">loadConfig</span>();
+
+  <span class="com">// 2. 启动所有已安装的插件</span>
+  <span class="kw">const</span> <span class="field">runtime</span> = <span class="kw">await</span> <span class="fn">initPluginRuntime</span>(cfg);
+
+  <span class="com">// 3. 连接所有渠道插件</span>
+  <span class="kw">const</span> <span class="field">channels</span> = <span class="kw">new</span> <span class="tp">ChannelManager</span>(cfg, runtime);
+  <span class="kw">await</span> channels.<span class="fn">connectAll</span>();
+
+  <span class="com">// 4. 启动 WebSocket 服务器</span>
+  <span class="fn">listenWebSocket</span>({ port: options.port ?? <span class="num">18789</span> });
+
+  <span class="com">// 5. 启动后台任务</span>
+  <span class="fn">startHeartbeatRunner</span>();
+  <span class="fn">startCronScheduler</span>(cfg);
+  <span class="fn">watchConfigFile</span>(cfg);
+}</pre>
+      </div>
+      <div class="zh-side">
+        <div class="label">逐行解释</div>
+        <ul>
+          <li>读取配置文件 <code>~/.openclaw/config.json</code>，其中包含 Agent、渠道、绑定规则和模型偏好设置。</li>
+          <li>加载所有已安装的插件（渠道、模型供应商、工具插件），插件是普通的 npm 包。</li>
+          <li>逐一连接每个渠道：打开 WhatsApp WebSocket、轮询 Telegram、加入 Discord 等。</li>
+          <li>打开 WebSocket 服务器，让移动 App、CLI 和 Web UI 都能与网关通信。</li>
+          <li>启动后台任务：心跳包保持渠道连接，Cron 调度器触发定时任务，配置监听器在文件变更时自动重载。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:20px;">网关的职责</h3>
+    <div class="cards-2">
+      <div class="card">
+        <h3>📥 接收消息</h3>
+        <p>从已连接的渠道（WhatsApp、Telegram…）接收消息，判断由哪个 Agent 处理，并放入队列。</p>
+      </div>
+      <div class="card">
+        <h3>📤 发送回复</h3>
+        <p>将 AI 生成的回复格式化后通过对应渠道送达，处理消息分段、媒体附件和正在输入提示。</p>
+      </div>
+      <div class="card">
+        <h3>🔑 身份验证</h3>
+        <p>签发并校验网关令牌。对未认证调用方限速（默认每分钟 10 次）。支持 CLI 通过二维码配对获取设备令牌。</p>
+      </div>
+      <div class="card">
+        <h3>🔄 配置热重载</h3>
+        <p>监听 <code>~/.openclaw/config.json</code>，文件变更后自动重新连接受影响的渠道，无需重启进程。</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <span class="icon">⚠️</span>
+      <p><strong>一台机器只能运行一个网关。</strong>如果启动第二个，它会因端口冲突或锁文件而立即退出。</p>
+    </div>
+  </section>
+
+  <!-- MODULE 2 -->
+  <section class="module" id="routing">
+    <div class="module-header"><span class="module-num">第 2 模块</span></div>
+    <h2>消息路由 — 消息如何找到对应的 Agent</h2>
+    <p class="intro">OpenClaw 支持同时运行多个 <span class="g">Agent<span class="tip">Agent 是一个命名的 AI 角色，拥有独立的系统提示词、模型选择和对话历史。你可以设置"默认"、"工作"、"家庭"等多个 Agent。</span></span>。路由决定每条消息由哪个 Agent 处理。</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="box">消息到达</div>
+        <div class="sub">来自 Telegram DM</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box highlight">resolveRoute()</div>
+        <div class="sub">查找绑定规则</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">agentId + sessionKey</div>
+        <div class="sub">路由结果返回</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="box">Agent 执行器</div>
+        <div class="sub">运行 AI</div>
+      </div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/routing/resolve-route.ts</div>
+<pre><span class="kw">export type</span> <span class="tp">ResolveAgentRouteInput</span> = {
+  cfg: <span class="tp">OpenClawConfig</span>;
+  channel: <span class="tp">string</span>;       <span class="com">// "telegram"</span>
+  accountId?: <span class="tp">string</span>;    <span class="com">// 哪个账号</span>
+  peer?: <span class="tp">RoutePeer</span>;      <span class="com">// 谁发的</span>
+  parentPeer?: <span class="tp">RoutePeer</span>; <span class="com">// 线程父节点</span>
+  guildId?: <span class="tp">string</span>;      <span class="com">// Discord 服务器</span>
+  memberRoleIds?: <span class="tp">string</span>[];
+};
+
+<span class="kw">export type</span> <span class="tp">ResolvedAgentRoute</span> = {
+  agentId: <span class="tp">string</span>;        <span class="com">// "default"</span>
+  sessionKey: <span class="tp">string</span>;    <span class="com">// 唯一会话 ID</span>
+  mainSessionKey: <span class="tp">string</span>; <span class="com">// DM 折叠键</span>
+  matchedBy: <span class="tp">MatchReason</span>; <span class="com">// 匹配原因</span>
+};</pre>
+      </div>
+      <div class="zh-side">
+        <div class="label">逐行解释</div>
+        <ul>
+          <li><strong>输入</strong>描述消息来源：哪个渠道（如 "telegram"）、哪个平台账号、哪个用户（peer），以及是否在某个线程内。</li>
+          <li><strong>输出</strong>是一个决策："把这条消息交给 Agent X，使用会话键 Y。"</li>
+          <li><code>agentId</code> 是应处理此消息的 AI Agent 名称（"default"、"work" 等）。</li>
+          <li><code>sessionKey</code> 是该对话线程的唯一 ID，Agent 的记忆以此为作用域。</li>
+          <li><code>matchedBy</code> 告诉你<em>为什么</em>选中了这个 Agent，便于调试（"binding.peer" 表示该用户被显式映射到了某个 Agent）。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">绑定优先级（从高到低）</h3>
+    <table class="priority-table">
+      <thead>
+        <tr><th>优先级</th><th>匹配类型</th><th><code>matchedBy</code> 值</th><th>示例</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="priority-badge">1</span></td><td>用户直接绑定</td><td><span class="match-tag">binding.peer</span></td><td>你的手机号 → "personal" Agent</td></tr>
+        <tr><td><span class="priority-badge">2</span></td><td>线程父节点绑定</td><td><span class="match-tag">binding.peer.parent</span></td><td>回复线程继承父消息的 Agent</td></tr>
+        <tr><td><span class="priority-badge">3</span></td><td>Discord 角色</td><td><span class="match-tag">binding.guild+roles</span></td><td>@admin 角色 → "ops" Agent</td></tr>
+        <tr><td><span class="priority-badge">4</span></td><td>服务器 / Guild</td><td><span class="match-tag">binding.guild</span></td><td>Discord 服务器 → "community" Agent</td></tr>
+        <tr><td><span class="priority-badge">5</span></td><td>团队 / 工作区</td><td><span class="match-tag">binding.team</span></td><td>Slack 工作区 → "work" Agent</td></tr>
+        <tr><td><span class="priority-badge">6</span></td><td>账号</td><td><span class="match-tag">binding.account</span></td><td>副 WhatsApp 号 → Agent</td></tr>
+        <tr><td><span class="priority-badge">7</span></td><td>渠道默认</td><td><span class="match-tag">binding.channel</span></td><td>所有 iMessage → "home" Agent</td></tr>
+        <tr><td><span class="priority-badge">8</span></td><td>系统默认</td><td><span class="match-tag">default</span></td><td>其他所有人 → "default" Agent</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">会话键（Session Key）解析</h3>
+    <p style="font-family:var(--font-ui);font-size:14px;color:var(--muted);margin-bottom:16px;">会话键就像一个储物柜编号，精确标识要加载哪段对话历史，以及将新消息追加到哪里。</p>
+    <div class="session-key">
+      <div class="sk-row">
+        <div class="sk-part p1">default</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p2">main</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p3">telegram</div>
+        <div class="sk-sep">:</div>
+        <div class="sk-part p4">123456789</div>
+      </div>
+      <div class="sk-labels">
+        <div class="sk-label">Agent ID</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">会话类型</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">渠道</div>
+        <div class="sk-label" style="max-width:10px"></div>
+        <div class="sk-label">用户 ID</div>
+      </div>
+    </div>
+
+    <div class="quiz" data-quiz="1">
+      <div class="q-header"><span class="badge">测验</span></div>
+      <h3>一个 Slack 用户在工作区发消息，同时该用户也配置了直接 peer 绑定。哪条路由规则生效？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">团队/工作区绑定生效，因为 Slack 基于团队工作。</button>
+        <button class="option" data-correct="true">直接 peer 绑定生效——它的优先级高于团队绑定。</button>
+        <button class="option" data-correct="false">取决于哪条规则先配置。</button>
+        <button class="option" data-correct="false">两条路由都触发，用户收到两条回复。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong>Peer 绑定（优先级 1）始终优于团队绑定（优先级 5）。优先级表从上到下依次匹配，命中即停止。这是设计决策：显式的用户级绑定始终覆盖群组级默认规则。
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULE 3 -->
+  <section class="module" id="channels">
+    <div class="module-header"><span class="module-num">第 3 模块</span></div>
+    <h2>消息渠道 — 连接世界</h2>
+    <p class="intro"><span class="g">渠道插件<span class="tip">渠道插件是一个知道如何连接某个消息平台的 npm 包，负责打开连接、接收消息、发送回复。</span></span>将 OpenClaw 接入某个消息平台。每个渠道相互独立，可在配置中单独启用或禁用。</p>
+
+    <div class="chat-anim">
+      <div class="chat-msg" style="animation-delay:0.1s">
+        <div class="avatar">📱</div>
+        <div class="bubble"><div class="name">WhatsApp</div>"今天我的日历上有什么安排？"</div>
+      </div>
+      <div class="chat-msg">
+        <div class="avatar">🤖</div>
+        <div class="bubble"><div class="name">Gateway → resolveRoute()</div>channel=whatsapp peer=+86…  →  agentId="default"</div>
+      </div>
+      <div class="chat-msg">
+        <div class="avatar">🧠</div>
+        <div class="bubble"><div class="name">Agent 执行器</div>调用工具：calendar.list() …</div>
+      </div>
+      <div class="chat-msg right">
+        <div class="avatar">📱</div>
+        <div class="bubble"><div class="name">OpenClaw → WhatsApp</div>"你有上午 9 点的团队站会和下午 3 点的牙医预约。"</div>
+      </div>
+      <div class="chat-msg" style="animation-delay:3.5s">
+        <div class="avatar">💬</div>
+        <div class="bubble"><div class="name">Telegram（同一个 Agent）</div>"下午 2 点提醒我去看牙医"</div>
+      </div>
+      <div class="chat-msg right" style="animation-delay:4.5s">
+        <div class="avatar">💬</div>
+        <div class="bubble"><div class="name">OpenClaw → Telegram</div>"提醒已设置 ✓（与 WhatsApp 共享同一记忆）"</div>
+      </div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/channels/plugins/index.ts（简化）</div>
+<pre><span class="kw">type</span> <span class="tp">ChannelPlugin</span> = {
+  id: <span class="tp">string</span>;         <span class="com">// "telegram", "discord"</span>
+  connect: (
+    cfg: <span class="tp">OpenClawConfig</span>,
+    onMessage: <span class="tp">MessageHandler</span>
+  ) => <span class="tp">Promise</span>&lt;<span class="tp">ChannelConnection</span>&gt;;
+  send: (
+    connection: <span class="tp">ChannelConnection</span>,
+    msg: <span class="tp">OutboundMessage</span>
+  ) => <span class="tp">Promise</span>&lt;<span class="tp">void</span>&gt;;
+  disconnect: () => <span class="tp">Promise</span>&lt;<span class="tp">void</span>&gt;;
+};</pre>
+      </div>
+      <div class="zh-side">
+        <div class="label">逐行解释</div>
+        <ul>
+          <li>每个渠道插件都遵循同一个三方法约定：<strong>connect</strong>（连接）、<strong>send</strong>（发送）、<strong>disconnect</strong>（断开）。</li>
+          <li><code>connect</code> 建立连接并注册 <code>onMessage</code> 回调——用户发消息时此回调立即触发。</li>
+          <li><code>send</code> 将 AI 生成的回复送达该平台上对应的用户。</li>
+          <li><code>disconnect</code> 干净地关闭连接（用于关机或配置重载时）。</li>
+          <li>网关只调用这三个方法——不需要了解 WhatsApp 和 Telegram 的任何内部实现差异。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">渠道健康监控</h3>
+    <p style="font-family:var(--font-ui);font-size:14px;color:var(--muted);margin-bottom:20px;">由于消息平台可能静默断连，后台健康监控器持续运行：</p>
+    <div class="lifecycle">
+      <div class="lifecycle-step"><div class="step-num">1</div><div><div class="step-title">每 60 秒发送心跳</div><div class="step-desc">每个渠道插件上报"存活"或最后活跃时间戳。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">2</div><div><div class="step-title">检测失活渠道</div><div class="step-desc">若渠道在超时窗口内未响应，标记为"降级"状态。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">3</div><div><div class="step-title">指数退避重连</div><div class="step-desc">网关按指数退避重试连接：5s、10s、20s……</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">4</div><div><div class="step-title">CLI 实时查看状态</div><div class="step-desc">运行 <code>openclaw channels status</code> 查看所有渠道的实时健康状态。</div></div></div>
+    </div>
+
+    <div class="quiz" data-quiz="2">
+      <div class="q-header"><span class="badge">测验</span></div>
+      <h3>用户从 WhatsApp 发消息，两小时后同一用户从 Telegram 发消息。这两次对话会共享记忆吗？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">不会——不同渠道始终创建不同会话。</button>
+        <button class="option" data-correct="false">会——所有渠道共享同一全局记忆。</button>
+        <button class="option" data-correct="true">取决于绑定配置：如果两个渠道路由到同一 Agent 且会话键匹配（如通过 peer 绑定），则共享记忆；否则是独立会话。</button>
+        <button class="option" data-correct="false">取决于 WhatsApp 是否是主渠道。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong>会话键默认同时包含渠道和用户 ID，因此 WhatsApp 和 Telegram 会产生不同的会话。但如果你配置了将两者映射到同一 Agent + 会话键的 peer 绑定，历史记录就能共享。设计上这是显式选择，不会自动合并。
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULE 4 -->
+  <section class="module" id="agents">
+    <div class="module-header"><span class="module-num">第 4 模块</span></div>
+    <h2>Agent 执行器 — AI 思考发生的地方</h2>
+    <p class="intro">消息路由完成后，<span class="g">Agent 执行器<span class="tip">Agent 执行器（pi-embedded）加载对话历史、构建提示词、调用 AI 模型、流式输出回复并执行工具调用。</span></span>接管工作。它是嵌入网关进程内部运行的 Claude Code Agent。</p>
+
+    <div class="pipeline-anim">
+      <div class="title">消息处理流水线（动画）</div>
+      <div class="pipe-row">
+        <div class="pipe-node channel">📱 渠道</div>
+        <div class="pipe-arrow-dark">→</div>
+        <div class="pipe-node router">🗺 路由</div>
+        <div class="pipe-arrow-dark">→</div>
+        <div class="pipe-node gateway">⚙️ 网关</div>
+        <div class="pipe-arrow-dark">→</div>
+        <div class="pipe-node agent">🤖 Agent 执行器</div>
+        <div class="pipe-arrow-dark">→</div>
+        <div class="pipe-node model">🧠 AI 模型</div>
+      </div>
+      <div class="pipe-dot" style="top:24px;"></div>
+    </div>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">src/agents/pi-embedded-runner/runs.ts</div>
+<pre><span class="kw">export function</span> <span class="fn">queueEmbeddedPiMessage</span>(
+  sessionId: <span class="tp">string</span>,
+  text: <span class="tp">string</span>
+): <span class="tp">boolean</span> {
+  <span class="kw">const</span> handle = ACTIVE_EMBEDDED_RUNS.<span class="fn">get</span>(sessionId);
+  <span class="kw">if</span> (!handle) {
+    diag.<span class="fn">debug</span>(<span class="str">`no active run for ${sessionId}`</span>);
+    <span class="kw">return false</span>;
+  }
+  <span class="kw">if</span> (handle.<span class="fn">isCompacting</span>()) {
+    <span class="com">// 正在压缩上下文窗口——等待</span>
+    <span class="kw">return false</span>;
+  }
+  <span class="kw">void</span> handle.<span class="fn">queueMessage</span>(text);
+  <span class="kw">return true</span>;
+}</pre>
+      </div>
+      <div class="zh-side">
+        <div class="label">逐行解释</div>
+        <ul>
+          <li>每个活跃对话都是一个"嵌入式运行"——一个可以在运行期间继续接收消息的 Agent 循环。</li>
+          <li>Agent 正在流式回复时，新消息依然可以到达（如你在回复未完成时发了追问）。它们会按顺序入队处理。</li>
+          <li>如果 Agent 正在进行上下文压缩（裁剪历史消息以适应上下文窗口），新消息会等待——不丢失，只是短暂暂停。</li>
+          <li>返回 <code>false</code> 表示消息未入队（没有活跃会话），调用方随后会创建新会话。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">Agent 能做什么（工具列表）</h3>
+    <div class="cards-3">
+      <div class="card"><h3>🖥️ Bash</h3><p>在你的机器上执行 Shell 命令，默认需要显式审批——可按命令或全局配置安全策略。</p></div>
+      <div class="card"><h3>📁 文件</h3><p>读写网关宿主机上的文件，作用范围限定在配置中指定的允许目录内。</p></div>
+      <div class="card"><h3>🌐 网络搜索</h3><p>通过 Brave、Exa、DuckDuckGo 或其他搜索插件在网络上搜索内容。</p></div>
+      <div class="card"><h3>🖼️ 图片生成</h3><p>通过 fal.ai、Replicate 等图片供应商生成图片，结果直接发回原始渠道。</p></div>
+      <div class="card"><h3>🔗 技能（Skills）</h3><p>用户自定义技能（Markdown 文件中的指令），扩展 Agent 在特定任务上的能力。</p></div>
+      <div class="card"><h3>🤖 子 Agent</h3><p>通过 ACP 派生子 Agent 并行处理或执行专项任务，结果流回父会话。</p></div>
+    </div>
+
+    <div class="callout tip">
+      <span class="icon">🔒</span>
+      <p><strong>Bash 工具审批流程。</strong>Agent 想执行 Shell 命令时，会向已连接的客户端（CLI 或 App）发送审批请求。用户看到类似 diff 的预览，可选择"批准"、"拒绝"或"始终允许"。这是核心安全模型——你始终掌控执行权。</p>
+    </div>
+
+    <div class="quiz" data-quiz="3">
+      <div class="q-header"><span class="badge">测验</span></div>
+      <h3>用户正在与 Agent 对话，Agent 正在流式输出一段较长的回复。此时用户发送了另一条消息，会发生什么？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">流式输出被取消，从头开始一个新请求。</button>
+        <button class="option" data-correct="false">新消息被忽略，直到流结束后用户重新发送。</button>
+        <button class="option" data-correct="true">新消息进入当前嵌入式运行的内部队列，等当前流结束后立即处理——消息不会丢失。</button>
+        <button class="option" data-correct="false">系统派生第二个 Agent 会话来并行处理新消息。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong><code>queueEmbeddedPiMessage</code> 将新消息加入活跃运行的内部队列，Agent 在完成当前轮次后立即处理它。这种设计避免了竞态条件，即使消息快速连续到达，对话也能保持连续性。
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULE 5 -->
+  <section class="module" id="plugins">
+    <div class="module-header"><span class="module-num">第 5 模块</span></div>
+    <h2>插件系统 — 赋予新能力</h2>
+    <p class="intro">OpenClaw 的插件系统允许你添加新的<span class="g">渠道<span class="tip">渠道插件新增消息平台，位于 extensions/ 目录下，暴露 connect/send/disconnect 接口。</span></span>、模型供应商、工具和技能，无需修改核心代码。插件就是普通的 npm 包。</p>
+
+    <div class="code-trans">
+      <div class="code-side">
+        <div class="label">extensions/discord/openclaw.plugin.json</div>
+<pre>{
+  <span class="field">"id"</span>: <span class="str">"discord"</span>,
+  <span class="field">"channels"</span>: [<span class="str">"discord"</span>],
+  <span class="field">"configSchema"</span>: {
+    <span class="field">"type"</span>: <span class="str">"object"</span>,
+    <span class="field">"properties"</span>: {}
+  }
+}</pre>
+      </div>
+      <div class="zh-side">
+        <div class="label">逐行解释</div>
+        <ul>
+          <li>每个插件通过 JSON 清单文件声明自身：<code>id</code> 是稳定标识符，<code>channels</code> 数组声明此插件提供哪些渠道 ID。</li>
+          <li>网关读取 <code>channels</code> 数组后，会在对应渠道上调用插件导出的 <code>connect</code>/<code>send</code>/<code>disconnect</code> 方法。</li>
+          <li><code>configSchema</code> 定义该插件在配置文件中所需的字段结构，用于配置校验。</li>
+          <li>插件通过 npm 安装到独立的插件目录，不会污染核心安装。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">插件生命周期</h3>
+    <div class="lifecycle">
+      <div class="lifecycle-step"><div class="step-num">1</div><div><div class="step-title">安装</div><div class="step-desc"><code>openclaw plugins install &lt;name&gt;</code>——在插件目录中执行 npm install。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">2</div><div><div class="step-title">注册</div><div class="step-desc">下次网关启动时，插件加载器扫描插件目录，读取清单，将插件添加到注册表。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">3</div><div><div class="step-title">激活</div><div class="step-desc">网关调用插件的 <code>activate(runtime)</code> 导出，注入插件运行时 API：配置、会话、工具、钩子。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">4</div><div><div class="step-title">运行</div><div class="step-desc">渠道插件连接到对应平台，工具插件注册工具，钩子插件订阅网关事件。</div></div></div>
+      <div class="lifecycle-step"><div class="step-num">5</div><div><div class="step-title">更新 / 移除</div><div class="step-desc"><code>openclaw plugins update</code> / <code>openclaw plugins remove &lt;name&gt;</code>，下次网关重启后生效。</div></div></div>
+    </div>
+
+    <h3 style="font-size:20px;margin-bottom:16px;">插件类型</h3>
+    <div class="cards-2">
+      <div class="card"><h3>📡 渠道插件</h3><p>连接到某个消息平台，提供 <code>connect</code>、<code>send</code>、<code>disconnect</code>。示例：<code>@openclaw/discord</code>、<code>@openclaw/matrix</code>、<code>@openclaw/msteams</code>。</p></div>
+      <div class="card"><h3>🤖 供应商插件</h3><p>封装 AI API，将 OpenClaw 的模型接口转换为供应商 SDK。示例：<code>@openclaw/anthropic</code>、<code>@openclaw/amazon-bedrock</code>、<code>@openclaw/deepseek</code>。</p></div>
+      <div class="card"><h3>🔧 工具插件</h3><p>向 Agent 添加可调用工具，Agent 可按名称调用。示例：网络搜索、日历集成、自定义 API。</p></div>
+      <div class="card"><h3>🪝 钩子插件</h3><p>订阅网关事件：message.in、message.out、session.start、tool.exec。用于日志记录、数据分析、消息转发。</p></div>
+    </div>
+
+    <div class="quiz" data-quiz="4">
+      <div class="q-header"><span class="badge">测验</span></div>
+      <h3>你想添加 Microsoft Teams 支持，核心仓库中没有它。正确的做法是？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">Fork 核心仓库，直接在 <code>src/channels/</code> 中添加 Teams 支持。</button>
+        <button class="option" data-correct="true">安装 <code>@openclaw/msteams</code> 渠道插件（<code>openclaw plugins install msteams</code>）——它已作为扩展存在于 <code>extensions/msteams</code>。</button>
+        <button class="option" data-correct="false">编辑 <code>src/gateway/server.impl.ts</code>，硬编码 Teams 凭据。</button>
+        <button class="option" data-correct="false">Teams 支持需要完整重新编译网关二进制文件。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong>Teams 支持以插件包的形式存在于 <code>extensions/msteams</code>。插件系统的设计就是让所有渠道都是可选插件，没有任何渠道硬编码进核心。这让核心保持精简，各渠道可以独立更新。
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULE 6 -->
+  <section class="module" id="together">
+    <div class="module-header"><span class="module-num">第 6 模块</span></div>
+    <h2>完整流程 — 端到端追踪</h2>
+    <p class="intro">追踪一条真实消息从第一个字节到最终回复的全过程，覆盖你学过的每一个环节。</p>
+
+    <div class="flow" style="flex-wrap:wrap;gap:8px;">
+      <div class="flow-step"><div class="box" style="background:var(--accent-lt);border-color:var(--accent);">📱 用户输入</div><div class="sub">"总结今天的邮件"</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">渠道插件</div><div class="sub">通过 WebSocket/轮询接收</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">网关</div><div class="sub">调用 resolveRoute()</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">Agent 执行器</div><div class="sub">加载对话记录</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">AI 模型</div><div class="sub">调用邮件工具</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">工具执行器</div><div class="sub">需要时请求审批</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box">网关</div><div class="sub">流式输出回复</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="box" style="background:var(--accent-lt);border-color:var(--accent);">📱 用户看到回复</div><div class="sub">几秒内完成</div></div>
+    </div>
+
+    <div class="cards-2">
+      <div class="card">
+        <h3>🗂️ 会话记录（Transcript）</h3>
+        <p>每一轮（用户消息 + 助手回复 + 工具调用）都保存为 <span class="g">JSONL<span class="tip">JSON Lines——每行一个 JSON 对象，便于流式写入和读取，无需将整个文件加载到内存。</span></span> 文件，路径：<code>~/.openclaw/agents/&lt;id&gt;/sessions/*.jsonl</code>。Agent 在每次对话时加载此文件以恢复记忆。</p>
+      </div>
+      <div class="card">
+        <h3>⚡ 流式输出</h3>
+        <p>回复从 AI 模型逐 Token 流式传输，经过 Agent、网关直达渠道。用户看到回复实时浮现，无需等待完整响应。</p>
+      </div>
+      <div class="card">
+        <h3>🔄 配置热重载</h3>
+        <p>编辑并保存 <code>~/.openclaw/config.json</code>，网关检测到变更后校验新配置，重新连接受影响的渠道，无需重启，不丢失消息。</p>
+      </div>
+      <div class="card">
+        <h3>🌲 上下文压缩</h3>
+        <p>当对话过长超出 AI 模型的上下文窗口时，Agent 自动压缩：将旧轮次总结为精炼块并裁剪记录。对话无缝继续，不丢失信息。</p>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="icon">🗺️</span>
+      <p><strong>出问题时往哪里看。</strong>回复不对？检查配置中的 Agent 绑定。没有回复？运行 <code>openclaw channels status</code> 查看是否有渠道断线。回复很慢？检查模型超时设置。Bash 工具不执行？检查配置中的审批策略。</p>
+    </div>
+  </section>
+
+  <!-- FINAL QUIZ -->
+  <section class="module" id="quiz">
+    <div class="module-header"><span class="module-num">综合测验</span></div>
+    <h2>学以致用</h2>
+    <p class="intro">这些题目测试你能否用所学的 OpenClaw 知识解决实际问题，而不仅仅是背诵概念。</p>
+
+    <div class="quiz" data-quiz="5">
+      <div class="q-header"><span class="badge">测验 5</span></div>
+      <h3>一位新贡献者说："我想让 OpenClaw 支持一个新的消息 App，应该改哪些文件？"正确答案是？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">编辑 <code>src/routing/resolve-route.ts</code>，添加新的渠道类型。</button>
+        <button class="option" data-correct="false">编辑 <code>src/gateway/server.impl.ts</code>，在渠道 switch 语句中添加新 case。</button>
+        <button class="option" data-correct="true">在 <code>extensions/</code> 下创建新插件包，编写 <code>openclaw.plugin.json</code> 清单，并实现渠道接口（connect/send/disconnect）。</button>
+        <button class="option" data-correct="false">Fork 仓库，在 <code>src/channels/</code> 中添加原生支持。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong>新渠道永远是插件，绝不硬编码进核心。在 <code>extensions/</code> 下创建包，定义 <code>openclaw.plugin.json</code> 清单，实现三方法渠道接口，发布到 npm。用户通过 <code>openclaw plugins install &lt;your-plugin&gt;</code> 安装。
+      </div>
+    </div>
+
+    <div class="quiz" data-quiz="6">
+      <div class="q-header"><span class="badge">测验 6</span></div>
+      <h3>OpenClaw 在 Telegram 上没有响应，但 WhatsApp 正常。你首先应该检查什么？</h3>
+      <div class="options">
+        <button class="option" data-correct="false">重启 AI 模型供应商——问题可能出在 Claude/OpenAI 上。</button>
+        <button class="option" data-correct="true">运行 <code>openclaw channels status --probe</code>，检查 Telegram 渠道是否显示为已连接或降级。</button>
+        <button class="option" data-correct="false">检查会话记录——可能是上下文压缩出错了。</button>
+        <button class="option" data-correct="false">检查绑定配置——Telegram 消息可能被路由到了不同的 Agent。</button>
+      </div>
+      <div class="explanation">
+        <strong>✅ 正确。</strong>WhatsApp 正常说明网关和 AI 模型没问题，问题是渠道特有的：Telegram 连接很可能已断线或降级。<code>channels status --probe</code> 主动探测每个渠道并报告健康状态，之后再检查 Telegram 凭据或手动触发重连。
+      </div>
+    </div>
+
+    <div class="finish-card">
+      <h2>🎉 课程完成！</h2>
+      <p>你现在已理解 OpenClaw 如何路由消息、运行 Agent、管理插件并保持高可用。可以自信地在它上面构建、调试和扩展了。</p>
+      <a href="https://docs.openclaw.ai" class="btn" target="_blank" rel="noopener noreferrer">阅读完整文档 →</a>
+    </div>
+
+    <h3 style="font-size:22px;margin-bottom:20px;">术语表</h3>
+    <div class="cards-2">
+      <div class="card"><h3>网关（Gateway）</h3><p>长期运行的 WebSocket + HTTP 服务器，是 OpenClaw 的控制平面。默认端口 18789，所有渠道、Agent 和客户端都通过它连接。</p></div>
+      <div class="card"><h3>Agent</h3><p>命名的 AI 角色，拥有独立的系统提示词、模型选择和对话历史。可为不同场景创建多个 Agent。</p></div>
+      <div class="card"><h3>渠道插件（Channel Plugin）</h3><p>连接到某个消息平台的 npm 包，暴露 <code>connect</code>、<code>send</code>、<code>disconnect</code>。所有渠道均为插件，无一硬编码进核心。</p></div>
+      <div class="card"><h3>会话键（Session Key）</h3><p>对话线程的唯一标识：<code>agentId:type:channel:peerId</code>。Agent 的记忆以此为作用域，不同键意味着独立记忆。</p></div>
+      <div class="card"><h3>绑定（Binding）</h3><p>将用户（peer）、群组（guild）或渠道映射到特定 Agent 的配置规则。优先级高的规则优先匹配，未命中任何规则则路由到默认 Agent。</p></div>
+      <div class="card"><h3>嵌入式运行（Embedded Run）</h3><p>带有实时 AI 循环的活跃 Agent 会话，流式输出期间可继续接收新消息。每个会话键最多同时存在一个嵌入式运行。</p></div>
+      <div class="card"><h3>上下文压缩（Context Compaction）</h3><p>对话超出 AI 模型上下文窗口时，将旧轮次总结压缩并裁剪记录。对话无缝继续，不丢失数据，只是做了压缩。</p></div>
+      <div class="card"><h3>ACP（Agent 控制平面）</h3><p>从父 Agent 派生子 Agent（子 Agent）的系统，用于并行处理或专项任务。结果流回父会话。</p></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const progressBar = document.getElementById('progress-bar');
+  function updateProgress() {
+    const scrolled = window.scrollY;
+    const total = document.body.scrollHeight - window.innerHeight;
+    progressBar.style.width = (total > 0 ? (scrolled / total) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('#sidebar nav a[data-section]');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.dataset.section === id);
+        });
+      }
+    });
+  }, { threshold: 0.25 });
+  sections.forEach(s => observer.observe(s));
+
+  const sectionIds = ['hero','intro','gateway','routing','channels','agents','plugins','together','quiz'];
+  let currentIdx = 0;
+  function scrollToSection(idx) {
+    idx = Math.max(0, Math.min(sectionIds.length - 1, idx));
+    const el = document.getElementById(sectionIds[idx]);
+    if (el) { el.scrollIntoView({ behavior: 'smooth' }); currentIdx = idx; }
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowDown' || e.key === 'j') scrollToSection(currentIdx + 1);
+    if (e.key === 'ArrowUp'   || e.key === 'k') scrollToSection(currentIdx - 1);
+  });
+
+  document.querySelectorAll('.quiz').forEach(quiz => {
+    const options = quiz.querySelectorAll('.option');
+    const explanation = quiz.querySelector('.explanation');
+    let answered = false;
+    options.forEach(opt => {
+      opt.addEventListener('click', () => {
+        if (answered) return;
+        answered = true;
+        const correct = opt.dataset.correct === 'true';
+        opt.classList.add(correct ? 'correct' : 'wrong');
+        if (!correct) options.forEach(o => { if (o.dataset.correct === 'true') o.classList.add('correct'); });
+        options.forEach(o => { o.style.cursor = 'default'; });
+        explanation.classList.add('visible');
+      });
+    });
+  });
+
+  window.addEventListener('scroll', () => {
+    sectionIds.forEach((id, idx) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.top <= window.innerHeight / 2 && rect.bottom >= 0) currentIdx = idx;
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>
